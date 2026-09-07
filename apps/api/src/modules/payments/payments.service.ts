@@ -40,7 +40,9 @@ export class PaymentsService {
 
     const summary: Record<string, unknown> = {
       totalReceived: totalReceivedUsd,
+      totalVolumeXLM: totalReceivedUsd,
       paymentCount,
+      totalPayments: paymentCount,
     };
 
     // Fiat conversion when requested

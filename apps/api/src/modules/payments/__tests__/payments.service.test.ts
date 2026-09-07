@@ -57,7 +57,7 @@ describe('PaymentsService', () => {
       expect(prisma.payment.aggregate).toHaveBeenCalledWith(
         expect.objectContaining({ where: { wallet: { userId: 'user-1' } } }),
       );
-      expect(summary).toEqual({ totalReceived: 42, paymentCount: 3 });
+      expect(summary).toEqual({ totalReceived: 42, totalVolumeXLM: 42, paymentCount: 3, totalPayments: 3 });
     });
 
     it('scopes the aggregate to one wallet owned by the user when walletId is given', async () => {

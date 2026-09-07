@@ -95,18 +95,23 @@ export default function Home() {
   const fetchSummary = useCallback(async () => {
     if (!session) return;
     try {
-      const res = await fetch('http://localhost:3001/payments/summary', { headers: getHeaders() });
+      const url = selectedWalletId
+        ? `http://localhost:3001/payments/summary?walletId=${encodeURIComponent(selectedWalletId)}`
+        : 'http://localhost:3001/payments/summary';
+      const res = await fetch(url, { headers: getHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.summary) {
-          setTotalVolumeXLM(Number(data.summary.totalVolumeXLM || 0));
-          setTotalPaymentsCount(Number(data.summary.totalPayments || 0));
+          const volume = Number(data.summary.totalVolumeXLM ?? data.summary.totalReceived ?? 0);
+          const count = Number(data.summary.totalPayments ?? data.summary.paymentCount ?? 0);
+          setTotalVolumeXLM(volume);
+          setTotalPaymentsCount(count);
         }
       }
     } catch (err) {
       console.error('Failed to fetch summary:', err);
     }
-  }, [session, getHeaders]);
+  }, [session, selectedWalletId, getHeaders]);
 
   useEffect(() => {
     if (!session) return;
@@ -316,7 +321,7 @@ export default function Home() {
                 content: (
                   <SummaryStats
                     totalPaymentsCount={totalPaymentsCount || payments.length}
-                    totalVolumeXLM={totalVolumeXLM}
+                    totalVolumeXLM={totalVolumeXLM || payments.reduce((acc, p) => acc + Number(p.amount || 0), 0)}
                     activeWalletsCount={wallets.length}
                   />
                 ),
@@ -327,7 +332,7 @@ export default function Home() {
                 content: (
                   <VolumeChart
                     payments={payments}
-                    totalVolumeXLM={totalVolumeXLM}
+                    totalVolumeXLM={totalVolumeXLM || payments.reduce((acc, p) => acc + Number(p.amount || 0), 0)}
                   />
                 ),
               },
