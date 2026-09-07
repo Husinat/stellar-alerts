@@ -1,7 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { requestLinkSchema, verifyLinkSchema } from './auth.schema';
+import { requestLinkSchema, verifyLinkSchema, telegramInitDataSchema } from './auth.schema';
 import { authService } from './auth.service';
-import { mfaService } from './mfa.service';
+import { TelegramInitDataError } from '../../utils/telegram';
 
 export class AuthController {
   async requestMagicLink(request: FastifyRequest, reply: FastifyReply) {
@@ -60,6 +60,33 @@ export class AuthController {
       return reply.send({ success: true, ...result });
     } catch (error: any) {
       return reply.status(401).send({ error: 'DID Authentication failed', message: error.message });
+    }
+  }
+
+  /**
+   * Authenticates a Telegram Mini App session from the client-provided
+   * `initData` string (HMAC-SHA256 validated server-side). Returns a session
+   * JWT identical in shape to the magic-link / DID responses.
+   */
+  async verifyTelegramInitData(request: FastifyRequest, reply: FastifyReply) {
+    const parsed = telegramInitDataSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid initData parameter', details: parsed.error.format() });
+    }
+
+    try {
+      const result = await authService.verifyTelegramInitData(parsed.data.initData);
+      return reply.send({ success: true, ...result });
+    } catch (error: any) {
+      if (error instanceof TelegramInitDataError) {
+        const status = error.code === 'INVALID_SIGNATURE' || error.code === 'EXPIRED' ? 401 : 400;
+        return reply.status(status).send({
+          error: 'Telegram authentication failed',
+          code: error.code,
+          message: error.message,
+        });
+      }
+      return reply.status(500).send({ error: 'Internal server error', message: error.message });
     }
   }
 

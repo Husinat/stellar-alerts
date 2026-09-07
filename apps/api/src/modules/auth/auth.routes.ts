@@ -7,6 +7,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.get('/auth/verify', authController.verifyMagicLink.bind(authController));
   app.post('/auth/did/challenge', authController.requestDIDChallenge.bind(authController));
   app.post('/auth/did/verify', authController.verifyDIDAuth.bind(authController));
+  app.post('/auth/telegram', authController.verifyTelegramInitData.bind(authController));
   app.get('/auth/me', { preHandler: [authenticateHook] }, authController.getMe.bind(authController));
   app.post('/auth/logout', { preHandler: [authenticateHook] }, authController.logout.bind(authController));
   

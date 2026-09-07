@@ -11,6 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "test": "vitest run",
+    "test:fuzz": "vitest run src/utils/__tests__/webhook-fuzzer.test.ts",
+    "test:e2e": "vitest run src/__tests__/e2e.test.ts",
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
@@ -27,6 +29,7 @@
     "pathe": "^2.0.3",
     "pkg-types": "^2.3.1",
     "prisma": "^7.9.0",
+    "toxiproxy-node-client": "^4.1.0",
     "tsx": "^4.23.0",
     "typescript": "^5.9.3",
     "unpkg": "^0.2.0",
@@ -43,6 +46,7 @@
     "dotenv": "^17.4.2",
     "fastify": "^5.10.0",
     "fastify-plugin": "^6.0.0",
+    "handlebars": "^4.7.9",
     "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.6.0",
@@ -53,7 +57,7 @@
     "pure-rand": "^8.4.2",
     "qrcode": "^1.5.3",
     "resend": "^3.5.0",
-    "snarkjs": "^0.7.0",
+    "snarkjs": "^0.7.6",
     "stellar-sdk": "^13.3.0",
     "zod": "^4.4.3"
   }
