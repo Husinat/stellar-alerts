@@ -23,6 +23,9 @@ export class WalletsController {
       if (error.message === 'Invalid ZK proof') {
         return reply.status(400).send({ error: 'Invalid ZK proof' });
       }
+      if (error.message === 'Wallet already exists' || error.code === 'P2002') {
+        return reply.status(409).send({ error: 'Conflict', message: 'Wallet address is already registered' });
+      }
       throw error;
     }
   }

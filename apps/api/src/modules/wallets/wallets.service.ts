@@ -26,14 +26,21 @@ export class WalletsService {
       targetUserId = anonUser.id;
     }
 
-    const wallet = await prisma.wallet.create({
-      data: {
-        userId: targetUserId,
-        publicKey,
-        label,
-      },
-    });
-    return wallet;
+    try {
+      const wallet = await prisma.wallet.create({
+        data: {
+          userId: targetUserId,
+          publicKey,
+          label,
+        },
+      });
+      return wallet;
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        throw new Error('Wallet already exists');
+      }
+      throw error;
+    }
   }
 
   async getWallets(userId: string) {
