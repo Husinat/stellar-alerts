@@ -490,12 +490,110 @@ export async function failedJobHandler({ jobId, failedReason }: { jobId?: string
   }
 }
 
+export async function processAlertDispatch(data: AlertJobData) {
+  // Get user's active webhooks
+  const wallet = await prisma.wallet.findUnique({
+    where: { id: data.walletId },
+    include: {
+      user: {
+        include: {
+          webhooks: {
+            where: { isActive: true },
+          },
+          notifyPrefs: true,
+        },
+      },
+    },
+  });
+
+  // Prepare webhook payload
+  const webhookPayload = {
+    event: "payment.received",
+    timestamp: new Date().toISOString(),
+    data: {
+      paymentId: data.paymentId,
+      txHash: data.txHash,
+      amount: data.amount,
+      asset: data.asset,
+      assetIssuer: data.assetIssuer,
+      fromAddress: data.fromAddress,
+      receivedAt: data.receivedAt,
+    },
+  };
+
+  // Dispatch to all user webhooks (non-blocking)
+  if (wallet?.user?.webhooks && wallet.user.webhooks.length > 0) {
+    await Promise.all(
+      wallet.user.webhooks.map((webhook) =>
+        dispatchWebhookAndLog(webhook.id, webhookPayload),
+      ),
+    ).catch((err) => {
+      console.warn(`[Worker] Webhook dispatch had errors: ${err.message}`);
+    });
+  }
+
+  // Dispatch Telegram alert if configured
+  if (wallet?.user?.notifyPrefs?.telegramEnabled && wallet.user.notifyPrefs.telegramChatId) {
+    try {
+      const chatId = wallet.user.notifyPrefs.telegramChatId;
+      const botToken = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
+      if (isPublicChannel(chatId)) {
+        await assertBotIsChannelAdmin(botToken, chatId);
+      }
+      const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: isPublicChannel(chatId) ? buildTelegramPaymentCard(data) : `Payment Receipt:\nAmount: ${data.amount} ${data.asset}\nFrom: ${data.fromAddress}`,
+          ...(isPublicChannel(chatId) ? { parse_mode: 'HTML' } : {}),
+        })
+      });
+
+      if (!response.ok) {
+        console.warn(`[Worker] Failed to send Telegram message for ${data.paymentId}`);
+      } else {
+        console.log(`[Worker] Sent Telegram receipt for ${data.paymentId}`);
+      }
+    } catch (dbErr: any) {
+      console.warn(`[Worker] Failed to send Telegram notification for ${data.paymentId}: ${dbErr.message}`);
+    }
+  }
+
+  // Send email alert
+  try {
+    const { data: resendData, error } = await resend.emails.send({
+      from: "Stellar Alerts <alerts@resend.dev>",
+      to: [data.fromAddress],
+      subject: `Payment Receipt: ${data.amount} ${data.asset}`,
+      html: `
+      <h1>Payment Receipt</h1>
+      <p><strong>Payment ID:</strong> ${data.paymentId}</p>
+      <p><strong>Transaction Hash:</strong> ${data.txHash}</p>
+      <p><strong>Amount:</strong> ${data.amount} ${data.asset}</p>
+      <p><strong>From Address:</strong> ${data.fromAddress}</p>
+      <p><strong>Received At:</strong> ${data.receivedAt}</p>
+    `,
+    });
+
+    if (error) {
+      console.warn(`[Worker] Resend Email Notice: ${error.message}`);
+    } else {
+      console.log(`[Worker] Sent email receipt for ${data.paymentId}`);
+    }
+    return resendData;
+  } catch (err: any) {
+    console.warn(`[Worker] Email dispatch error: ${err.message}`);
+    return null;
+  }
+}
+
 export async function enqueuePaymentAlert(data: AlertJobData) {
   if (!alertQueue) {
     console.log(
-      `[Queue] Skipping queue enqueue for payment ${data.txHash} (Queue not connected)`,
+      `[Queue] Queue not connected for ${data.txHash}. Dispatching alert directly in-process...`,
     );
-    return null;
+    return processAlertDispatch(data);
   }
 
   try {
@@ -506,9 +604,9 @@ export async function enqueuePaymentAlert(data: AlertJobData) {
     return job;
   } catch (err: any) {
     console.warn(
-      `[Queue] Failed to enqueue alert for payment ${data.txHash}: ${err.message}`,
+      `[Queue] Failed to enqueue alert for payment ${data.txHash}: ${err.message}. Falling back to direct dispatch...`,
     );
-    return null;
+    return processAlertDispatch(data);
   }
 }
 

@@ -11,6 +11,11 @@ const start = async () => {
     await app.listen({ port, host: '0.0.0.0' });
     console.log(`🚀 Server listening on http://localhost:${port}`);
 
+    if (process.env.START_WORKER !== 'false') {
+      const { runWatcher } = await import('./workers/watcher.worker');
+      runWatcher().catch((err) => console.error('⚠️ Watcher worker error:', err));
+    }
+
     const shutdown = async () => {
       console.log('🛑 Graceful shutdown initiated...');
       setTimeout(() => {
