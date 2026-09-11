@@ -139,7 +139,7 @@ async function main() {
 
 // ESM-safe "is this the entry point" check (works across POSIX and Windows
 // paths, unlike comparing import.meta.url to a raw file:// string).
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && (import.meta.url === pathToFileURL(process.argv[1]).href || process.argv[1].includes('generate-types'))) {
   main().catch((err) => {
     console.error('[generate-types] Failed:', err);
     process.exitCode = 1;

@@ -8,6 +8,10 @@ on:
   schedule:
     - cron: '0 6 * * *'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   actions: read
   contents: read
@@ -19,6 +23,7 @@ jobs:
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.5.0
     with:
       scan-args: |-
+        --config=osv-scanner.toml
         --recursive
         ./
       results-file-name: security-audit-report.sarif

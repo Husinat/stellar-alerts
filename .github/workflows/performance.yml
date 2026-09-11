@@ -23,6 +23,10 @@ on:
         description: 'Duration to sustain peak VUs'
         default: '30s'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   k6-load-test:
     name: k6 Load Test (API)
@@ -51,7 +55,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/stellar_alerts?connection_limit=100
       REDIS_URL: redis://localhost:6379
-      JWT_SECRET: ci-perf-test-secret-key
+      JWT_SECRET: ci-perf-test-secret-key-min-32-chars!!
+      MASTER_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       TELEGRAM_BOT_TOKEN: ci-perf-test-bot-token
       PORT: 3001
       NODE_ENV: development
@@ -80,9 +85,6 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/stellar_alerts
         run: |
-          # Fix malformed generator provider line in Prisma schema.
-          sed -i 's/provider =("prisma-client"/provider = "prisma-client"/' prisma/schema.prisma
-
           # Wait up to 60s for Postgres to accept connections
           for i in $(seq 1 30); do
             if nc -z localhost 5432 2>/dev/null; then
@@ -94,8 +96,6 @@ jobs:
           done
 
           # Retry prisma db push with exponential backoff (5 attempts).
-          # Prisma v7 does not support --skip-generate; generate is run as a
-          # separate step after the schema has been successfully pushed.
           attempt=1
           until [ $attempt -gt 5 ]; do
             npx prisma db push --accept-data-loss && break
