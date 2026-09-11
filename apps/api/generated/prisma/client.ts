@@ -85,6 +85,11 @@ export type WebhookCircuitBreaker = Prisma.WebhookCircuitBreakerModel
  */
 export type SorobanEventSnapshot = Prisma.SorobanEventSnapshotModel
 /**
+ * Model SorobanStateAudit
+ * 
+ */
+export type SorobanStateAudit = Prisma.SorobanStateAuditModel
+/**
  * Model SorobanContractSubscription
  * 
  */
@@ -114,6 +119,16 @@ export type AnchorTransactionWatch = Prisma.AnchorTransactionWatchModel
  * 
  */
 export type DexSwapWatch = Prisma.DexSwapWatchModel
+/**
+ * Model SorobanTopicIndex
+ * 
+ */
+export type SorobanTopicIndex = Prisma.SorobanTopicIndexModel
+/**
+ * Model SorobanTopicIndexCursor
+ * 
+ */
+export type SorobanTopicIndexCursor = Prisma.SorobanTopicIndexCursorModel
 /**
  * Model DexSwapEvent
  * 

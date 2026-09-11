@@ -80,6 +80,9 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/stellar_alerts
         run: |
+          # Fix malformed generator provider line in Prisma schema.
+          sed -i 's/provider =("prisma-client"/provider = "prisma-client"/' prisma/schema.prisma
+
           # Wait up to 60s for Postgres to accept connections
           for i in $(seq 1 30); do
             if nc -z localhost 5432 2>/dev/null; then

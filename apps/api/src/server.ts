@@ -1,10 +1,12 @@
 import { env } from './config/env';
 import { buildApp } from './app';
 import { prisma, connectWithRetry } from './lib/prisma';
+import { startTelemetry, shutdownTelemetry } from './lib/telemetry';
 
 const start = async () => {
   try {
     await connectWithRetry();
+    await startTelemetry();
     const app = await buildApp();
     const port = parseInt(env.PORT, 10);
 
@@ -20,6 +22,7 @@ const start = async () => {
 
       await app.close();
       await prisma.$disconnect();
+      await shutdownTelemetry();
       console.log('✅ Server and Prisma closed cleanly');
       process.exit(0);
     };

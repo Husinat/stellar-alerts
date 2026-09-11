@@ -11,6 +11,8 @@
     "dev": "turbo dev",
     "dev:api": "npm run dev --workspace=api",
     "dev:worker": "npm run dev:worker --workspace=api",
+    "dev:indexer": "npm run dev:indexer --workspace=api",
+    "indexer:benchmark": "npm run indexer:benchmark --workspace=api",
     "dev:reporting": "npm run dev:reporting --workspace=api",
     "dev:web": "npm run dev --workspace=web",
     "dev:collab": "npm run dev:collab --workspace=web",
@@ -25,6 +27,8 @@
     "generate:types:check": "tsx scripts/generate-types.ts --check",
     "benchmark:stream": "tsx scripts/benchmark-stream.ts",
     "security:audit": "osv-scanner scan source -r . --config osv-scanner.toml",
+    "verify:migrations": "npx tsx scripts/verify-migrations.ts",
+    "verify:migrations:dry-run": "npx tsx scripts/verify-migrations.ts --dry-run",
     "prepare": "husky"
   },
   "packageManager": "npm@10.8.2",

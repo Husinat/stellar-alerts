@@ -1,17 +1,27 @@
 name: Continuous Integration
-
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-
 jobs:
   validate:
     name: Build, Lint & Test
     runs-on: ubuntu-latest
 
     services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: stellar_alerts
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U user"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+
       redis:
         image: redis:7-alpine
         ports:
@@ -37,16 +47,23 @@ jobs:
         run: npm run generate:types:check
 
       - name: Build Shared Package (@stellar-alerts/shared)
-        run: npx tsc -p packages/shared/tsconfig.json
+        run: nx tsc -p packages/shared/tsconfig.json
 
       - name: Typecheck Backend (apps/api)
-        run: npx tsc -p apps/api/tsconfig.json --noEmit
+        run: nx tsc -p apps/api/tsconfig.json --noEmit
 
       - name: Typecheck Frontend (apps/web)
-        run: npx tsc -p apps/web/tsconfig.json --noEmit
+        run: nx tsc -p apps/web/tsconfig.json --noEmit
+
+      - name: Push Prisma Schema (test database)
+        run: npm run db:push
+        env:
+          DATABASE_URL: "postgresql://user:password@localhost:5432/stellar_alerts?schema=public"
 
       - name: Run API Unit Tests
         run: npm run test:api
+        env:
+          DATABASE_URL: "postgresql://user:password@localhost:5432/stellar_alerts?schema=public"
 
       - name: Run Web Lint
         run: npm run lint --workspace=web
@@ -57,7 +74,7 @@ jobs:
       - name: Build Web Application
         run: npm run build --workspace=web
         env:
-          NEXTAUTH_SECRET: "ci-build-dummy-secret-key-12345"
+          NEXTAUTH_SECRET: "ci-build-dummy-secret-key-123456"
           NEXT_PUBLIC_API_URL: "http://localhost:3001"
 
   chaos:
@@ -77,32 +94,35 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      # docker-compose.yml runs toxiproxy with network_mode: host, which is
-      # Linux-only — exactly what ubuntu-latest runners are, so this needs
-      # no extra host-gateway wiring (the chaos suite's own fixture server
-      # binds to 127.0.0.1, directly reachable from the toxiproxy container).
-      - name: Start Toxiproxy
-        run: docker compose up -d toxiproxy
+      - name: Build Shared Package (@stellar-alerts/shared)
+        run: npx tsc -p packages/shared/tsconfig.json
 
-      - name: Wait for Toxiproxy to be ready
+      # docker-compose.yml runs toxoproxy with network_mode: host, which is
+      # Linux-only &#8212; exactly what ubuntu-latest runners are, so this needs
+      # no extra host-gateway wiring (the chaos suite's own fixture server
+      # binds to 127.0.0.1, directly reachable from the toxoproxy container).
+      - name: Start Toxoproxy
+        run: docker compose up -d toxoproxy
+
+      - name: Wait for Toxoproxy to be ready
         run: |
-          for i in $(seq 1 30); do
+          for i in $(seq 1 1 30); do
             if curl -sf http://localhost:8474/version > /dev/null; then
-              echo "Toxiproxy is up"
+              echo "Toxoproxy is up"
               exit 0
             fi
             sleep 1
           done
-          echo "Toxiproxy did not become ready in time" >&2
-          docker compose logs toxiproxy
+          echo "Toxoproxy did not become ready in time" >&2
+          docker compose logs toxoproxy
           exit 1
 
       - name: Run Chaos Test Suite
         working-directory: apps/api
         run: npx --no-install vitest run src/__tests__/chaos.test.ts
         env:
-          TOXIPROXY_URL: http://localhost:8474
+          TOXOPROXY_URL: http://localhost:8474
 
-      - name: Stop Toxiproxy
+      - name: Stop Toxoproxy
         if: always()
-        run: docker compose down toxiproxy
+        run: docker compose down toxoproxy || true

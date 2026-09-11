@@ -53,6 +53,7 @@ stellar-alerts/
 │   │   │   │   ├── prisma.ts     # Prisma ORM singleton instance
 │   │   │   │   ├── queue.ts      # BullMQ payment-alerts Redis queue
 │   │   │   │   ├── soroban.ts    # Soroban RPC client & contract event parser
+│   │   │   │   ├── soroban-topic-indexer.ts # XDR topic array decoder + GIN helpers
 │   │   │   │   └── stellar.ts    # Horizon API client & StrKey checksum guard
 │   │   │   ├── modules/
 │   │   │   │   ├── auth/         # Magic link issuance & verification
@@ -62,7 +63,9 @@ stellar-alerts/
 │   │   │   │   ├── jwt.ts        # Magic & Session JWT signing/verification
 │   │   │   │   └── webhook-signer.ts # HMAC SHA256 webhook signature generator
 │   │   │   └── workers/
-│   │   │       └── watcher.worker.ts # Horizon SSE real-time stream watcher
+│   │   │       ├── watcher.worker.ts # Horizon SSE real-time stream watcher
+│   │   │       ├── soroban-indexer.worker.ts # Soroban topic indexer + search + benchmark
+│   │   │       └── supervisor.ts   # Spawns & supervises child indexer workers
 │   │   ├── prisma/
 │   │   │   └── schema.prisma     # Data models for User, Wallet, Payment
 │   │   └── vitest.config.ts      # Vitest test configuration
@@ -111,6 +114,34 @@ The ingestion worker ([watcher.worker.ts](file:///c:/Users/user/OneDrive/Documen
 3. **Soroban RPC Ingestion**: Queries `getEvents` for Soroban contract event logs.
 4. **Idempotent Persistence**: Checks `prisma.payment.findUnique({ where: { txHash } })` to guarantee idempotent database insertion.
 5. **BullMQ Queue Enqueueing**: Publishes alert payload to `payment-alerts` queue with exponential retry backoff (5 attempts).
+
+---
+
+## 5.1 Soroban Topic Indexer Engine
+
+The [soroban-indexer.worker.ts](apps/api/src/workers/soroban-indexer.worker.ts) sub-ledger indexer parses nested Soroban contract event **topic arrays** (XDR `ScVal` unions) into queryable PostgreSQL JSONB columns, backed by GIN indexes so dashboard topic-search stays well under the 50ms SLA.
+
+**Indexed model** (`SorobanTopicIndex`): per `[contractId, ledgerSeq]` it stores
+- `topics` — JSONB decoded topic tree (types: `bool`, `u32`, `i32`, `u64`, `symbol`, `string`, `bytes`, `address`, `vec`, `map`, `error`, …; 64/128/256-bit integers rendered losslessly as decimal strings).
+- `topicSymbols` — flat `text[]` of every symbol value found in the tree (first-position event name first).
+- `topicSymbol` — lead event symbol (btree, for cheap exact-equality).
+- `topicXdrJson` — raw base64 XDR audit column.
+- `topicsHash` — SHA-256 of the canonical (key-sorted) JSON, unique with `[contractId, ledgerSeq]` so replays never double-insert.
+
+**XDR decoder** (`lib/soroban-topic-indexer.ts`): accepts both already-parsed `xdr.ScVal` (stellar-sdk `getEvents`) and raw base64 strings (Horizon/HorizonSSE). Undecodable entries degrade to `raw`/`scv` markers rather than failing the event.
+
+**GIN indexes**: Prisma cannot express GIN opclass indexes, so the worker owns index lifecycle via idempotent `CREATE INDEX IF NOT EXISTS`:
+- `topics` → GIN `jsonb_path_ops` for `@>` containment.
+- `topicSymbols` → GIN `array_ops` for `&&` (any-of) and `@>` (contains-all).
+- `topicSymbol` → btree (exact match).
+
+**Bounded SQL**: search predicates are built by shared builders using fixed quoted identifiers plus single-quote-escaped value literals, so the assembled SQL is injection-safe.
+
+**Cursor**: `SorobanTopicIndexCursor` persists the last indexed ledger per contract; the worker resumes from `cursor + 1`, or backfills the last `SOROBAN_INDEXER_BACKFILL_WINDOW` ledgers when starting fresh.
+
+**Performance benchmark**: `runTopicSearchBenchmark` seeds a synthetic corpus through the **production decoder**, runs each dashboard query pattern under `EXPLAIN (ANALYZE, FORMAT JSON)`, confirms a GIN index is used, and asserts every query completes below the (configurable, default 50ms) SLA. Run live via `npm run indexer:benchmark` (from `apps/api`). Seed rows are removed afterwards unless `--keep`.
+
+**Spawn & config**: the supervisor spawns the indexer when `SOROBAN_INDEXER_WORKER_ENABLED=true`; interval/backfill/page-size are configurable via `SOROBAN_INDEXER_*` env vars.
 
 ---
 

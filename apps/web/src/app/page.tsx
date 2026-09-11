@@ -17,13 +17,11 @@ import {
   ActivityHeatmap,
   EmailTemplatePreview,
 } from '@/components/dashboard';
-import { EmailTemplateConfig } from '@/components/dashboard/EmailTemplatePreview';
-import { CommandPalette } from '@/components/CommandPalette';
-
-type AppSession = { accessToken?: string };
+import { useBatchReader } from '@/lib/hooks/useBatchReader';
 
 export default function Home() {
   const { data: session } = useSession();
+  const batchReader = useBatchReader(); // NEW: Batched read layer
   const [emailInput, setEmailInput] = useState('');
   const [sentEmail, setSentEmail] = useState('');
   const [devMagicUrl, setDevMagicUrl] = useState<string | null>(null);
@@ -44,7 +42,7 @@ export default function Home() {
   const [totalPaymentsCount, setTotalPaymentsCount] = useState<number>(0);
   const [crossLedgerAnalytics, setCrossLedgerAnalytics] = useState<any>(null);
 
-  // Helper to get auth headers
+  // Helper to get auth headers (kept for non-batched endpoints like auth)
   const getHeaders = useCallback(() => {
     const headers: Record<string, string> = {};
     const accessToken = (session as (typeof session & AppSession) | null)?.accessToken;
@@ -54,90 +52,99 @@ export default function Home() {
     return headers;
   }, [session]);
 
-  // Fetch wallets
-  const fetchWallets = useCallback(async () => {
-    if (!session) return;
-    try {
-      const res = await fetch('http://localhost:3001/wallets', { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.wallets)) {
-          setWallets(data.wallets);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch wallets:', err);
-    }
-  }, [session, getHeaders]);
-
-  // Fetch payments
-  const fetchPayments = useCallback(async () => {
+  /**
+   * NEW BATCHED APPROACH:
+   * Single fetch that groups wallets + payments + summary into one cached call.
+   * 
+   * OLD APPROACH (commented out below):
+   * - fetchWallets() → 1 RPC call
+   * - fetchPayments() → 1 RPC call  
+   * - fetchSummary() → 1 RPC call
+   * = 3 separate round-trips, no caching
+   */
+  const fetchDashboardData = useCallback(async () => {
     if (!session) return;
     setIsLoadingPayments(true);
     try {
-      const url = selectedWalletId
-        ? `http://localhost:3001/payments?walletId=${encodeURIComponent(selectedWalletId)}`
-        : 'http://localhost:3001/payments';
-      const res = await fetch(url, { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.payments)) {
-          setPayments(data.payments);
-        }
-      }
+      const data = await batchReader.fetchUserPortfolioBatched(
+        selectedWalletId || undefined
+      );
+      
+      setWallets(data.wallets);
+      setPayments(data.payments);
+      setTotalVolumeXLM(data.summary.totalVolumeXLM);
+      setTotalPaymentsCount(data.summary.totalPayments);
     } catch (err) {
-      console.error('Failed to fetch payments:', err);
+      console.error('Failed to fetch dashboard data:', err);
     } finally {
       setIsLoadingPayments(false);
     }
-  }, [session, selectedWalletId, getHeaders]);
+  }, [session, selectedWalletId, batchReader]);
 
-  // Fetch summary stats
-  const fetchSummary = useCallback(async () => {
-    if (!session) return;
-    try {
-      const res = await fetch('http://localhost:3001/payments/summary', { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.summary) {
-          setTotalVolumeXLM(Number(data.summary.totalVolumeXLM || 0));
-          setTotalPaymentsCount(Number(data.summary.totalPayments || 0));
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch summary:', err);
-    }
-  }, [session, getHeaders]);
+  // OLD APPROACH (kept as reference):
+  // const fetchWallets = useCallback(async () => {
+  //   if (!session) return;
+  //   try {
+  //     const res = await fetch('http://localhost:3001/wallets', { headers: getHeaders() });
+  //     if (res.ok) {
+  //       const data = await res.json();
+  //       if (data.success && Array.isArray(data.wallets)) {
+  //         setWallets(data.wallets);
+  //       }
+  //     }
+  //   } catch (err) {
+  //     console.error('Failed to fetch wallets:', err);
+  //   }
+  // }, [session, getHeaders]);
 
-  // Fetch cross ledger analytics
-  const fetchCrossLedgerAnalytics = useCallback(async () => {
-    if (!session) return;
-    try {
-      const url = selectedWalletId
-        ? `http://localhost:3001/payments/analytics/cross-ledger?walletId=${encodeURIComponent(selectedWalletId)}`
-        : 'http://localhost:3001/payments/analytics/cross-ledger';
-      const res = await fetch(url, { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.analytics) {
-          setCrossLedgerAnalytics(data.analytics);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch cross ledger analytics:', err);
-    }
-  }, [session, selectedWalletId, getHeaders]);
+  // const fetchPayments = useCallback(async () => {
+  //   if (!session) return;
+  //   setIsLoadingPayments(true);
+  //   try {
+  //     const url = selectedWalletId
+  //       ? `http://localhost:3001/payments?walletId=${encodeURIComponent(selectedWalletId)}`
+  //       : 'http://localhost:3001/payments';
+  //     const res = await fetch(url, { headers: getHeaders() });
+  //     if (res.ok) {
+  //       const data = await res.json();
+  //       if (data.success && Array.isArray(data.payments)) {
+  //         setPayments(data.payments);
+  //       }
+  //     }
+  //   } catch (err) {
+  //     console.error('Failed to fetch payments:', err);
+  //   } finally {
+  //     setIsLoadingPayments(false);
+  //   }
+  // }, [session, selectedWalletId, getHeaders]);
+
+  // const fetchSummary = useCallback(async () => {
+  //   if (!session) return;
+  //   try {
+  //     const res = await fetch('http://localhost:3001/payments/summary', { headers: getHeaders() });
+  //     if (res.ok) {
+  //       const data = await res.json();
+  //       if (data.success && data.summary) {
+  //         setTotalVolumeXLM(Number(data.summary.totalVolumeXLM || 0));
+  //         setTotalPaymentsCount(Number(data.summary.totalPayments || 0));
+  //       }
+  //     }
+  //   } catch (err) {
+  //     console.error('Failed to fetch summary:', err);
+  //   }
+  // }, [session, getHeaders]);
 
   useEffect(() => {
-    if (!session) return;
-    const timer = window.setTimeout(() => {
-      void fetchWallets();
-      void fetchPayments();
-      void fetchSummary();
-      void fetchCrossLedgerAnalytics();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [session, selectedWalletId, fetchWallets, fetchPayments, fetchSummary, fetchCrossLedgerAnalytics]);
+    if (session) {
+      // NEW: Single batched call instead of 3 separate calls
+      fetchDashboardData();
+      
+      // OLD: 3 separate unbatched calls
+      // fetchWallets();
+      // fetchPayments();
+      // fetchSummary();
+    }
+  }, [session, selectedWalletId, fetchDashboardData]);
 
   const handleRemoveWallet = async (id: string) => {
     try {
@@ -149,9 +156,10 @@ export default function Home() {
         if (selectedWalletId === id) {
           setSelectedWalletId(null);
         }
-        fetchWallets();
-        fetchPayments();
-        fetchSummary();
+        // NEW: Invalidate cache after mutation
+        batchReader.invalidateAll();
+        // Then refetch with batched call
+        fetchDashboardData();
       }
     } catch (err) {
       console.error('Failed to remove wallet:', err);
@@ -421,6 +429,22 @@ export default function Home() {
               },
             ]}
           />
+
+          <div id="add-wallet-section" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Watcher Form Card */}
+            <div className="lg:col-span-4 bg-[#0c0c14]/80 backdrop-blur-md rounded-3xl border border-white/10 p-7 shadow-2xl hover:border-cyan-500/30 transition-all duration-500">
+              <WatcherForm onWalletAdded={() => { 
+                // NEW: Invalidate cache and refetch with batched call
+                batchReader.invalidateAll();
+                fetchDashboardData(); 
+              }} />
+            </div>
+
+            {/* Modular Component 3: PaymentTable */}
+            <div className="lg:col-span-8">
+              <PaymentTable payments={payments} isLoading={isLoadingPayments} />
+            </div>
+          </div>
         </main>
 
         {/* Modular Component 4: NotificationModal */}
