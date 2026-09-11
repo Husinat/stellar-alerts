@@ -55,9 +55,24 @@ function defaultRunGC(): boolean {
   return true;
 }
 
+import v8 from 'v8';
+
 export function takeMemorySnapshot(getMemoryUsage: () => NodeJS.MemoryUsage = process.memoryUsage): MemorySnapshot {
   const usage = getMemoryUsage();
-  const usageRatio = usage.heapTotal > 0 ? usage.heapUsed / usage.heapTotal : 0;
+  let maxCapacity = usage.heapTotal;
+
+  if (getMemoryUsage === process.memoryUsage) {
+    try {
+      const heapLimit = v8.getHeapStatistics().heap_size_limit;
+      if (heapLimit && heapLimit > 0) {
+        maxCapacity = heapLimit;
+      }
+    } catch {
+      // Fallback to heapTotal
+    }
+  }
+
+  const usageRatio = maxCapacity > 0 ? usage.heapUsed / maxCapacity : 0;
   return {
     heapUsed: usage.heapUsed,
     heapTotal: usage.heapTotal,
