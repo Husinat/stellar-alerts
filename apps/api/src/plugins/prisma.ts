@@ -1,6 +1,6 @@
 import fp from 'fastify-plugin';
 import { FastifyInstance } from 'fastify';
-import { prisma } from '../lib/prisma';
+import { prisma, prismaRead } from '../lib/prisma';
 import { createReadReplicaRouter, ReadReplicaRouter } from '../lib/prisma-read-replica';
 
 declare module 'fastify' {

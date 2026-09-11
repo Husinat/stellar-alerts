@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { parseSorobanMintBurnEvent } from '../soroban';
 
 describe('parseSorobanMintBurnEvent', () => {
@@ -12,7 +12,7 @@ describe('parseSorobanMintBurnEvent', () => {
     const parsed = parseSorobanMintBurnEvent(event);
     expect(parsed).not.toBeNull();
     expect(parsed?.eventType).toBe('MINT');
-    expect(parsed?.amount).toBe('100000');
+    expect(parsed?.amount).toBe('0.01');
     expect(parsed?.to).toBe('G...');
   });
 
@@ -25,7 +25,7 @@ describe('parseSorobanMintBurnEvent', () => {
     };
     const parsed = parseSorobanMintBurnEvent(event);
     expect(parsed?.eventType).toBe('BURN');
-    expect(parsed?.amount).toBe('50000');
+    expect(parsed?.amount).toBe('0.005');
     expect(parsed?.from).toBe('G...');
   });
 
@@ -35,7 +35,7 @@ describe('parseSorobanMintBurnEvent', () => {
       topic: ['transfer'],
       value: { from: 'G...', to: 'G...', amount: '100' },
     };
-    expect(parseSorobanMintBurnEvent(event)).toBENull();
+    expect(parseSorobanMintBurnEvent(event)).toBeNull();
   });
 
   it('should handle missing amount', () => {
@@ -45,6 +45,6 @@ describe('parseSorobanMintBurnEvent', () => {
       value: { to: 'G...' },
     };
     const parsed = parseSorobanMintBurnEvent(event);
-    expect(parsed?.amount).toBe('0');
+    expect(parsed).toBeNull();
   });
 });

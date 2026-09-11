@@ -12,75 +12,76 @@ vi.mock('../lib/prisma', () => {
   const payments = new Map<string, any>();
   const webhooks = new Map<string, any>();
 
-  return {
-    prisma: {
-      user: {
-        findUnique: vi.fn().mockImplementation(async ({ where }) => {
-          if (where.email) return users.get(where.email) || null;
-          if (where.id) return Array.from(users.values()).find((u) => u.id === where.id) || null;
-          return null;
-        }),
-        upsert: vi.fn().mockImplementation(async ({ where, create }) => {
-          const existing = users.get(where.email);
-          if (existing) return existing;
-          const user = { id: `usr-${Date.now()}`, email: create.email, createdAt: new Date() };
-          users.set(create.email, user);
-          return user;
-        }),
-        create: vi.fn().mockImplementation(async ({ data }) => {
-          const user = { id: `usr-${Date.now()}`, email: data.email, createdAt: new Date() };
-          users.set(data.email, user);
-          return user;
-        }),
-      },
-      wallet: {
-        findFirst: vi.fn().mockImplementation(async ({ where }) => {
-          return (
-            Array.from(wallets.values()).find(
-              (w) => w.userId === where.userId && w.publicKey === where.publicKey
-            ) || null
-          );
-        }),
-        create: vi.fn().mockImplementation(async ({ data }) => {
-          const wallet = {
-            id: `wlt-${Date.now()}`,
-            userId: data.userId,
-            publicKey: data.publicKey,
-            label: data.label || 'Default Wallet',
-            lastPagingToken: '0',
-            createdAt: new Date(),
-          };
-          wallets.set(wallet.id, wallet);
-          return wallet;
-        }),
-        findMany: vi.fn().mockImplementation(async ({ where }) => {
-          return Array.from(wallets.values()).filter((w) => w.userId === where.userId);
-        }),
-      },
-      payment: {
-        create: vi.fn().mockImplementation(async ({ data }) => {
-          const payment = {
-            id: `pay-${Date.now()}`,
-            walletId: data.walletId,
-            txHash: data.txHash,
-            amount: data.amount,
-            asset: data.asset,
-            fromAddress: data.fromAddress,
-            receivedAt: data.receivedAt || new Date(),
-          };
-          payments.set(payment.id, payment);
-          return payment;
-        }),
-        findMany: vi.fn().mockImplementation(async ({ where }) => {
-          return Array.from(payments.values()).filter((p) => p.walletId === where.walletId);
-        }),
-      },
-      webhook: {
-        findMany: vi.fn().mockImplementation(async ({ where }) => {
-          return Array.from(webhooks.values()).filter((w) => w.userId === where.userId);
-        }),
-      },
+  const mockPrisma = {
+    user: {
+      findUnique: vi.fn().mockImplementation(async ({ where }) => {
+        if (where.email) return users.get(where.email) || null;
+        if (where.id) return Array.from(users.values()).find((u) => u.id === where.id) || null;
+        return null;
+      }),
+      upsert: vi.fn().mockImplementation(async ({ where, create }) => {
+        const existing = users.get(where.email);
+        if (existing) return existing;
+        const user = { id: `usr-${Date.now()}`, email: create.email, createdAt: new Date() };
+        users.set(create.email, user);
+        return user;
+      }),
+      create: vi.fn().mockImplementation(async ({ data }) => {
+        const user = { id: `usr-${Date.now()}`, email: data.email, createdAt: new Date() };
+        users.set(data.email, user);
+        return user;
+      }),
     },
+    wallet: {
+      findFirst: vi.fn().mockImplementation(async ({ where }) => {
+        return (
+          Array.from(wallets.values()).find(
+            (w) => w.userId === where.userId && w.publicKey === where.publicKey
+          ) || null
+        );
+      }),
+      create: vi.fn().mockImplementation(async ({ data }) => {
+        const wallet = {
+          id: `wlt-${Date.now()}`,
+          userId: data.userId,
+          publicKey: data.publicKey,
+          label: data.label || 'Default Wallet',
+          lastPagingToken: '0',
+          createdAt: new Date(),
+        };
+        wallets.set(wallet.id, wallet);
+        return wallet;
+      }),
+      findMany: vi.fn().mockImplementation(async ({ where }) => {
+        return Array.from(wallets.values()).filter((w) => w.userId === where.userId);
+      }),
+    },
+    payment: {
+      findUnique: vi.fn().mockImplementation(async ({ where }) => {
+        if (where.txHash) return payments.get(where.txHash) || null;
+        return null;
+      }),
+      create: vi.fn().mockImplementation(async ({ data }) => {
+        const payment = { id: `pay-${Date.now()}`, ...data };
+        payments.set(data.txHash, payment);
+        return payment;
+      }),
+      findMany: vi.fn().mockImplementation(async ({ where }) => {
+        return Array.from(payments.values()).filter((p) => p.walletId === where.walletId);
+      }),
+    },
+    webhook: {
+      findMany: vi.fn().mockImplementation(async ({ where }) => {
+        return Array.from(webhooks.values()).filter((w) => w.userId === where.userId);
+      }),
+    },
+  };
+
+  return {
+    prisma: mockPrisma,
+    prismaRead: mockPrisma,
+    replicaPrisma: mockPrisma,
+    getReadClient: () => mockPrisma,
   };
 });
 

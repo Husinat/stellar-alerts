@@ -11,6 +11,7 @@ import { walletsRoutes } from './modules/wallets/wallets.routes';
 import { paymentsRoutes } from './modules/payments/payments.routes';
 import { webhooksRoutes } from './modules/webhooks/webhooks.routes';
 import { sorobanStateRoutes } from './modules/soroban-state/soroban-state.routes';
+import { notificationsRoutes } from './modules/notifications/notifications.routes';
 import { openApiOptions } from './openapi.config';
 
 export { openApiComponentSchemas, openApiOptions } from './openapi.config';

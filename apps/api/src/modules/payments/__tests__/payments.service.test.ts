@@ -1,11 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const { mockPayment } = vi.hoisted(() => ({
+  mockPayment: {
+    findMany: vi.fn(),
+    aggregate: vi.fn(),
+  },
+}));
+
 vi.mock('../../../lib/prisma', () => ({
   prisma: {
-    payment: {
+    payment: mockPayment,
+    sorobanEventSnapshot: {
       findMany: vi.fn(),
-      aggregate: vi.fn(),
     },
+    sorobanContractSubscription: {
+      findMany: vi.fn(),
+    },
+  },
+  prismaRead: {
+    payment: mockPayment,
     sorobanEventSnapshot: {
       findMany: vi.fn(),
     },

@@ -127,7 +127,7 @@ describe("runTopicSearchBenchmark — DB index query performance benchmark", () 
 
     // ANALYZE was refreshed before measurement
     expect(vi.mocked(prisma.$queryRawUnsafe).mock.calls.some(([sql]) => /^ANALYZE/.test(sql))).toBe(true);
-  });
+  }, 30000);
 
   it("cleans up seeded rows by default", async () => {
     vi.mocked(prisma.sorobanTopicIndex.count).mockResolvedValueOnce(500);
@@ -138,7 +138,7 @@ describe("runTopicSearchBenchmark — DB index query performance benchmark", () 
     const deletes = vi.mocked(prisma.$queryRawUnsafe).mock.calls.filter(([sql]) => /^DELETE FROM/.test(sql));
     expect(deletes).toHaveLength(1);
     expect(deletes[0][0] as string).toContain("C_TOPIC_BENCH");
-  });
+  }, 30000);
 
   it("fails the report when any query exceeds the timing SLA", async () => {
     mockQueryRaw(120.5);

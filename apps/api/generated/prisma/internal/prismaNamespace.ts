@@ -395,6 +395,7 @@ export type FieldRef<Model, FieldType> = runtime.FieldRef<Model, FieldType>
 
 type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRef<Model, FieldType>
 
+
 export const ModelName = {
   User: 'User',
   Wallet: 'Wallet',
@@ -407,6 +408,8 @@ export const ModelName = {
   SorobanEventSnapshot: 'SorobanEventSnapshot',
   SorobanStateAudit: 'SorobanStateAudit',
   SorobanContractSubscription: 'SorobanContractSubscription',
+  SacTokenMintBurnEvent: 'SacTokenMintBurnEvent',
+  SacTokenSupply: 'SacTokenSupply',
   MultisigTreasury: 'MultisigTreasury',
   MultisigSignerWatcher: 'MultisigSignerWatcher',
   PendingMultisigTransaction: 'PendingMultisigTransaction',
@@ -431,7 +434,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "wallet" | "ingestionCursor" | "payment" | "notificationPreference" | "webhook" | "webhookLog" | "webhookCircuitBreaker" | "sorobanEventSnapshot" | "sorobanStateAudit" | "sorobanContractSubscription" | "multisigTreasury" | "multisigSignerWatcher" | "pendingMultisigTransaction" | "anchorTransactionWatch" | "dexSwapWatch" | "dexSwapEvent"
+    modelProps: "user" | "wallet" | "ingestionCursor" | "payment" | "notificationPreference" | "webhook" | "webhookLog" | "webhookCircuitBreaker" | "sorobanEventSnapshot" | "sorobanStateAudit" | "sorobanContractSubscription" | "sacTokenMintBurnEvent" | "sacTokenSupply" | "multisigTreasury" | "multisigSignerWatcher" | "pendingMultisigTransaction" | "anchorTransactionWatch" | "dexSwapWatch" | "sorobanTopicIndex" | "sorobanTopicIndexCursor" | "dexSwapEvent" | "securityAuditLog"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1249,6 +1252,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    SacTokenMintBurnEvent: {
+      payload: Prisma.$SacTokenMintBurnEventPayload<ExtArgs>
+      fields: Prisma.SacTokenMintBurnEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SacTokenMintBurnEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenMintBurnEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SacTokenMintBurnEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenMintBurnEventPayload>
+        }
+        findFirst: {
+          args: Prisma.SacTokenMintBurnEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenMintBurnEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SacTokenMintBurnEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenMintBurnEventPayload>
+        }
+        findMany: {
+          args: Prisma.SacTokenMintBurnEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenMintBurnEventPayload>[]
+        }
+        create: {
+          args: Prisma.SacTokenMintBurnEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenMintBurnEventPayload>
+        }
+        createMany: {
+          args: Prisma.SacTokenMintBurnEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SacTokenMintBurnEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenMintBurnEventPayload>[]
+        }
+        delete: {
+          args: Prisma.SacTokenMintBurnEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenMintBurnEventPayload>
+        }
+        update: {
+          args: Prisma.SacTokenMintBurnEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenMintBurnEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.SacTokenMintBurnEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SacTokenMintBurnEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SacTokenMintBurnEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenMintBurnEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.SacTokenMintBurnEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenMintBurnEventPayload>
+        }
+        aggregate: {
+          args: Prisma.SacTokenMintBurnEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSacTokenMintBurnEvent>
+        }
+        groupBy: {
+          args: Prisma.SacTokenMintBurnEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SacTokenMintBurnEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SacTokenMintBurnEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SacTokenMintBurnEventCountAggregateOutputType> | number
+        }
+      }
+    }
+    SacTokenSupply: {
+      payload: Prisma.$SacTokenSupplyPayload<ExtArgs>
+      fields: Prisma.SacTokenSupplyFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SacTokenSupplyFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenSupplyPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SacTokenSupplyFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenSupplyPayload>
+        }
+        findFirst: {
+          args: Prisma.SacTokenSupplyFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenSupplyPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SacTokenSupplyFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenSupplyPayload>
+        }
+        findMany: {
+          args: Prisma.SacTokenSupplyFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenSupplyPayload>[]
+        }
+        create: {
+          args: Prisma.SacTokenSupplyCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenSupplyPayload>
+        }
+        createMany: {
+          args: Prisma.SacTokenSupplyCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SacTokenSupplyCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenSupplyPayload>[]
+        }
+        delete: {
+          args: Prisma.SacTokenSupplyDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenSupplyPayload>
+        }
+        update: {
+          args: Prisma.SacTokenSupplyUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenSupplyPayload>
+        }
+        deleteMany: {
+          args: Prisma.SacTokenSupplyDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SacTokenSupplyUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SacTokenSupplyUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenSupplyPayload>[]
+        }
+        upsert: {
+          args: Prisma.SacTokenSupplyUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SacTokenSupplyPayload>
+        }
+        aggregate: {
+          args: Prisma.SacTokenSupplyAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSacTokenSupply>
+        }
+        groupBy: {
+          args: Prisma.SacTokenSupplyGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SacTokenSupplyGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SacTokenSupplyCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SacTokenSupplyCountAggregateOutputType> | number
+        }
+      }
+    }
     MultisigTreasury: {
       payload: Prisma.$MultisigTreasuryPayload<ExtArgs>
       fields: Prisma.MultisigTreasuryFieldRefs
@@ -1957,6 +2108,8 @@ export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof
 export const UserScalarFieldEnum = {
   id: 'id',
   email: 'email',
+  mfaSecret: 'mfaSecret',
+  mfaEnabled: 'mfaEnabled',
   createdAt: 'createdAt'
 } as const
 
@@ -2020,7 +2173,10 @@ export const WebhookScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
   url: 'url',
-  secret: 'secret',
+  secretCiphertext: 'secretCiphertext',
+  secretIv: 'secretIv',
+  secretAuthTag: 'secretAuthTag',
+  keyVersion: 'keyVersion',
   payloadTemplate: 'payloadTemplate',
   isActive: 'isActive',
   createdAt: 'createdAt'
@@ -2097,6 +2253,33 @@ export const SorobanContractSubscriptionScalarFieldEnum = {
 } as const
 
 export type SorobanContractSubscriptionScalarFieldEnum = (typeof SorobanContractSubscriptionScalarFieldEnum)[keyof typeof SorobanContractSubscriptionScalarFieldEnum]
+
+
+export const SacTokenMintBurnEventScalarFieldEnum = {
+  id: 'id',
+  contractId: 'contractId',
+  eventType: 'eventType',
+  amount: 'amount',
+  from: 'from',
+  to: 'to',
+  ledgerSeq: 'ledgerSeq',
+  txHash: 'txHash',
+  createdAt: 'createdAt'
+} as const
+
+export type SacTokenMintBurnEventScalarFieldEnum = (typeof SacTokenMintBurnEventScalarFieldEnum)[keyof typeof SacTokenMintBurnEventScalarFieldEnum]
+
+
+export const SacTokenSupplyScalarFieldEnum = {
+  contractId: 'contractId',
+  circulatingSupply: 'circulatingSupply',
+  totalMinted: 'totalMinted',
+  totalBurned: 'totalBurned',
+  updatedAt: 'updatedAt',
+  createdAt: 'createdAt'
+} as const
+
+export type SacTokenSupplyScalarFieldEnum = (typeof SacTokenSupplyScalarFieldEnum)[keyof typeof SacTokenSupplyScalarFieldEnum]
 
 
 export const MultisigTreasuryScalarFieldEnum = {
@@ -2293,6 +2476,13 @@ export type ListStringFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaMod
 
 
 /**
+ * Reference to a field of type 'Boolean'
+ */
+export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
+    
+
+
+/**
  * Reference to a field of type 'DateTime'
  */
 export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime'>
@@ -2317,13 +2507,6 @@ export type DecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel,
  * Reference to a field of type 'Decimal[]'
  */
 export type ListDecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal[]'>
-    
-
-
-/**
- * Reference to a field of type 'Boolean'
- */
-export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
 
@@ -2530,6 +2713,8 @@ export type GlobalOmitConfig = {
   sorobanEventSnapshot?: Prisma.SorobanEventSnapshotOmit
   sorobanStateAudit?: Prisma.SorobanStateAuditOmit
   sorobanContractSubscription?: Prisma.SorobanContractSubscriptionOmit
+  sacTokenMintBurnEvent?: Prisma.SacTokenMintBurnEventOmit
+  sacTokenSupply?: Prisma.SacTokenSupplyOmit
   multisigTreasury?: Prisma.MultisigTreasuryOmit
   multisigSignerWatcher?: Prisma.MultisigSignerWatcherOmit
   pendingMultisigTransaction?: Prisma.PendingMultisigTransactionOmit

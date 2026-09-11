@@ -12,6 +12,7 @@ import {
 import { withWalletLock } from '../lib/lock';
 import { shouldAlert, PaymentContext } from '../lib/rules-engine';
 import { MemoryMonitor, MemorySnapshot } from '../utils/memory-monitor';
+import { createLogger } from '../lib/logger';
 import { trace, SpanStatusCode, TraceFlags } from '@opentelemetry/api';
 
 const tracer = trace.getTracer('watcher-worker');
@@ -140,6 +141,12 @@ export async function processPaymentRecord(
           span.setAttribute('payment.enqueued', false);
         }
       }
+
+      const pagingToken = record.paging_token || record.pagingToken;
+      if (pagingToken) {
+        await saveCursor(wallet.id, pagingToken);
+      }
+
       span.setStatus({ code: SpanStatusCode.OK });
     } catch (err) {
       span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
@@ -221,7 +228,6 @@ export async function processWalletPayments(wallet: { id: string; publicKey: str
           await processPaymentRecord(wallet, record);
           if (record.paging_token) {
             cursor = record.paging_token;
-            await saveCursor(wallet.id, cursor);
           }
         }
 
@@ -245,74 +251,133 @@ export async function processWalletPayments(wallet: { id: string; publicKey: str
   });
 }
 
-export async function startHorizonSSEStream(wallet: { id: string; publicKey: string; userId?: string }) {
+export const handleStreamRecord = processPaymentRecord;
+
+export type StreamHandlerOptions = {
+  onmessage: (record: any) => Promise<void>;
+  onerror: (error: any) => void;
+};
+
+export type StreamConnector = (
+  cursor: string,
+  handlers: StreamHandlerOptions
+) => () => void;
+
+export type StartHorizonSSEStreamOptions = {
+  connector?: StreamConnector;
+  reconnectDelayMs?: number;
+  maxReconnectAttempts?: number;
+};
+
+export async function startHorizonSSEStream(
+  wallet: { id: string; publicKey: string; userId?: string },
+  options: StartHorizonSSEStreamOptions = {}
+): Promise<() => void> {
   return tracer.startActiveSpan('watcher.startHorizonSSEStream', async (span) => {
-    try {
-      console.log(`[WatcherWorker] 📡 Opening Horizon SSE payment stream for wallet ${wallet.publicKey.substring(0, 8)}...`);
+    let isClosed = false;
+    let attempts = 1;
+    let currentClose: (() => void) | null = null;
+    let heartbeatTimeout: NodeJS.Timeout | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
 
-      let timeoutId: NodeJS.Timeout;
-      let closeStream: (() => void) | undefined;
+    const noopClose = () => {};
 
-      const resetHeartbeat = () => {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-          console.warn(`[WatcherStream] ⚠️ Heartbeat timeout for ${wallet.publicKey.substring(0, 8)}... Reconnecting...`);
-          if (closeStream) closeStream();
-          startHorizonSSEStream(wallet);
-        }, 60000);
-      };
+    if (!wallet.publicKey || !wallet.publicKey.startsWith('G')) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: 'Invalid public key' });
+      span.end();
+      return noopClose;
+    }
+
+    const maxAttempts = options.maxReconnectAttempts ?? Infinity;
+    const reconnectDelay = options.reconnectDelayMs ?? 1000;
+
+    const defaultConnector: StreamConnector = (cursor, handlers) => {
+      return stellar.server
+        .payments()
+        .forAccount(wallet.publicKey)
+        .cursor(cursor)
+        .stream(handlers) as unknown as () => void;
+    };
+
+    const connector = options.connector ?? defaultConnector;
+
+    const cleanupCurrent = () => {
+      if (heartbeatTimeout) {
+        clearTimeout(heartbeatTimeout);
+        heartbeatTimeout = null;
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+      }
+      if (currentClose) {
+        try {
+          currentClose();
+        } catch {}
+        currentClose = null;
+      }
+    };
+
+    const resetHeartbeat = () => {
+      if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
+      heartbeatTimeout = setTimeout(() => {
+        console.warn(`[WatcherStream] ⚠️ Heartbeat timeout for ${wallet.publicKey.substring(0, 8)}... Reconnecting...`);
+        connect();
+      }, 60000);
+    };
+
+    const connect = async () => {
+      if (isClosed) return;
+      cleanupCurrent();
 
       try {
         const cursor = await ensureCursor(wallet);
         resetHeartbeat();
 
-        closeStream = stellar.server
-          .payments()
-          .forAccount(wallet.publicKey)
-          .cursor(cursor)
-          .stream({
-            onmessage: async (record: any) => {
-              console.log(
-                `[WatcherStream] ⚡ Live SSE stream message received: ${record.type}`,
-              );
-              await processPaymentRecord(wallet, record);
-              if (record.paging_token) {
-                await saveCursor(wallet.id, record.paging_token);
-              }
-            },
-            onerror: (error: any) => {
-              console.error(
-                `[WatcherStream] SSE stream error for ${wallet.publicKey.substring(0, 8)}...:`,
-                error,
-              );
-            },
-          }) as unknown as () => void;
-
-        const originalClose = closeStream;
-        closeStream = () => {
-          clearTimeout(timeoutId);
-          if (originalClose) originalClose();
+        const handlers: StreamHandlerOptions = {
+          onmessage: async (record: any) => {
+            resetHeartbeat();
+            attempts = 1;
+            console.log(`[WatcherStream] ⚡ Live SSE stream message received: ${record.type}`);
+            await processPaymentRecord(wallet, record);
+            if (record.paging_token) {
+              await saveCursor(wallet.id, record.paging_token);
+            }
+          },
+          onerror: (error: any) => {
+            console.error(`[WatcherStream] SSE stream error for ${wallet.publicKey.substring(0, 8)}...:`, error);
+            cleanupCurrent();
+            if (isClosed) return;
+            if (attempts < maxAttempts) {
+              attempts++;
+              reconnectTimeout = setTimeout(() => {
+                connect();
+              }, reconnectDelay);
+            }
+          },
         };
 
-        span.setStatus({ code: SpanStatusCode.OK });
-        span.end();
-        return closeStream;
+        currentClose = connector(cursor, handlers);
       } catch (err: any) {
-        span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
-        span.end();
         console.error(`[WatcherStream] Failed to open SSE stream: ${err.message}`);
-        clearTimeout(timeoutId!);
-        return null;
       }
-    } catch (err) {
-      span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+    };
+
+    try {
+      await connect();
+      span.setStatus({ code: SpanStatusCode.OK });
       span.end();
-      throw err;
+    } catch (err: any) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+      span.end();
     }
+
+    return () => {
+      isClosed = true;
+      cleanupCurrent();
+    };
   });
 }
-
-let memoryMonitor: MemoryMonitor | null = null;
 
 /**
  * Logs the reason, stops the memory monitor's own timer, and exits the
@@ -344,6 +409,42 @@ export function startMemoryMonitor(): MemoryMonitor {
   monitor.start();
   memoryMonitor = monitor;
   return monitor;
+}
+
+export async function pollOnce() {
+  return tracer.startActiveSpan('watcher.pollOnce', async (pollSpan) => {
+    try {
+      const wallets = await prisma.wallet.findMany();
+      if (wallets.length === 0) {
+        pollSpan.setStatus({ code: SpanStatusCode.OK });
+        pollSpan.end();
+        return;
+      }
+      for (const wallet of wallets) {
+        try {
+          await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
+        } catch (err: any) {
+          console.error(`[WatcherWorker] Error processing wallet ${wallet.publicKey}:`, err.message || err);
+        }
+      }
+      const contractIds = getActiveContractIds();
+      if (contractIds.length > 0) {
+        for (const contractId of contractIds) {
+          try {
+            await processSorobanContractEvents(contractId);
+          } catch (err: any) {
+            console.error(`[WatcherWorker] Error processing contract ${contractId}:`, err.message || err);
+          }
+        }
+      }
+      pollSpan.setStatus({ code: SpanStatusCode.OK });
+    } catch (err: any) {
+      console.error('[WatcherWorker] Error in pollOnce:', err.message || err);
+      pollSpan.setStatus({ code: SpanStatusCode.OK });
+    } finally {
+      pollSpan.end();
+    }
+  });
 }
 
 export async function runWatcher() {

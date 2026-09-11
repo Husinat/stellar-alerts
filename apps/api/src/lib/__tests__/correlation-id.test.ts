@@ -21,13 +21,19 @@ vi.mock('../../config/env', () => ({
   },
 }));
 
-vi.mock('../../lib/prisma', () => ({
-  prisma: {
+vi.mock('../../lib/prisma', () => {
+  const mockPrisma = {
     $connect: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn().mockResolvedValue(undefined),
     $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
-  },
-}));
+  };
+  return {
+    prisma: mockPrisma,
+    prismaRead: mockPrisma,
+    replicaPrisma: mockPrisma,
+    getReadClient: () => mockPrisma,
+  };
+});
 
 vi.mock('../../lib/queue', () => ({
   alertQueue: null,

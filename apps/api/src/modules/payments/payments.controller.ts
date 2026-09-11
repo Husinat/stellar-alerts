@@ -18,6 +18,8 @@ const getSummarySchema = z.object({
 const getTaxExportSchema = z.object({
   walletId: z.string().optional(),
   format: z.enum(['cointracker', 'koinly', 'irs8949']).optional().default('cointracker'),
+});
+
 const getCrossLedgerSchema = z.object({
   walletId: z.string().optional(),
 });
@@ -40,7 +42,7 @@ export class PaymentsController {
     return reply.send({ success: true, payments });
   }
 
-  async getPaymentsSummary(request: FastifyRequest, reply: FastifyReply) {
+  async getSummary(request: FastifyRequest, reply: FastifyReply) {
     const parsed = getSummarySchema.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid query', details: parsed.error.format() });
@@ -57,10 +59,12 @@ export class PaymentsController {
     return reply.send({ success: true, summary });
   }
 
+  async getPaymentsSummary(request: FastifyRequest, reply: FastifyReply) {
+    return this.getSummary(request, reply);
+  }
+
   async getTaxExport(request: FastifyRequest, reply: FastifyReply) {
     const parsed = getTaxExportSchema.safeParse(request.query);
-  async getCrossLedgerAnalytics(request: FastifyRequest, reply: FastifyReply) {
-    const parsed = getCrossLedgerSchema.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid query', details: parsed.error.format() });
     }
@@ -86,6 +90,17 @@ export class PaymentsController {
       .header('Content-Type', 'text/csv; charset=utf-8')
       .header('Content-Disposition', `attachment; filename="tax-export-${parsed.data.format}.csv"`)
       .send(csv);
+  }
+
+  async getCrossLedgerAnalytics(request: FastifyRequest, reply: FastifyReply) {
+    const parsed = getCrossLedgerSchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid query', details: parsed.error.format() });
+    }
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized', message: 'User not authenticated' });
+    }
+
     const analytics = await paymentsService.getCrossLedgerAnalytics(
       request.user.id,
       parsed.data.walletId,

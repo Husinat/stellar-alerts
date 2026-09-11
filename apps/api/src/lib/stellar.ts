@@ -179,9 +179,6 @@ export function parseSacTransferEvent(event: any, decimals: number = 7): SacTran
     rawAmount: rawAmount.toString(),
   };
 }
-function logPaymentsError(publicKey: string, error: any) {
-  console.error(`[Stellar] Error fetching payments for account ${publicKey}:`, error?.message || error);
-}
 
 export interface MultisigSigner {
   key: string;

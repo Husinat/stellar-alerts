@@ -378,10 +378,6 @@ export type WalletUncheckedUpdateManyWithoutUserNestedInput = {
   deleteMany?: Prisma.WalletScalarWhereInput | Prisma.WalletScalarWhereInput[]
 }
 
-export type NullableStringFieldUpdateOperationsInput = {
-  set?: string | null
-}
-
 export type WalletCreateNestedOneWithoutCursorInput = {
   create?: Prisma.XOR<Prisma.WalletCreateWithoutCursorInput, Prisma.WalletUncheckedCreateWithoutCursorInput>
   connectOrCreate?: Prisma.WalletCreateOrConnectWithoutCursorInput

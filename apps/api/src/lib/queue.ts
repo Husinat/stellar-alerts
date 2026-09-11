@@ -1,5 +1,6 @@
 import { Queue, QueueEvents, Job, Worker } from 'bullmq';
 import { Resend } from 'resend';
+import { prisma } from './prisma';
 import { createLogger } from './logger';
 
 const queueLog = createLogger({ module: 'Queue' });
@@ -289,63 +290,7 @@ export async function dispatchWebhookAndLog(webhookId: string, payload: any, ret
   }
 }
 
-export const paymentAlertWorkerProcessor = async (job: { data: AlertJobData }) => {
-  const data = job.data;
-  
-  const { data: resendData, error } = await resend.emails.send({
-    from: 'Stellar Alerts <alerts@resend.dev>',
-    to: [data.fromAddress],
-    subject: `Payment Receipt: ${data.amount} ${data.asset}`,
-    html: `
-      <h1>Payment Receipt</h1>
-      <p><strong>Payment ID:</strong> ${data.paymentId}</p>
-      <p><strong>Transaction Hash:</strong> ${data.txHash}</p>
-      <p><strong>Amount:</strong> ${data.amount} ${data.asset}</p>
-      <p><strong>From Address:</strong> ${data.fromAddress}</p>
-      <p><strong>Received At:</strong> ${data.receivedAt}</p>
-    `,
-  });
-
-  if (error) {
-    throw new Error(`Resend Error: ${error.message}`);
-  }
-  
-  console.log(`[Worker] Sent email receipt for ${data.paymentId}`);
-
-  try {
-    const payment = await prisma.payment.findUnique({
-      where: { id: data.paymentId },
-      include: { wallet: { include: { user: { include: { notifyPrefs: true } } } } }
-    });
-
-    if (payment?.wallet?.user?.notifyPrefs?.telegramEnabled && payment.wallet.user.notifyPrefs.telegramChatId) {
-      const chatId = payment.wallet.user.notifyPrefs.telegramChatId;
-      const botToken = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
-      if (isPublicChannel(chatId)) {
-        await assertBotIsChannelAdmin(botToken, chatId);
-      }
-      const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: isPublicChannel(chatId) ? buildTelegramPaymentCard(data) : `Payment Receipt:\nAmount: ${data.amount} ${data.asset}\nFrom: ${data.fromAddress}`,
-          ...(isPublicChannel(chatId) ? { parse_mode: 'HTML' } : {}),
-        })
-      });
-      
-      if (!response.ok) {
-        console.warn(`[Worker] Failed to send Telegram message for ${data.paymentId}`);
-      } else {
-        console.log(`[Worker] Sent Telegram receipt for ${data.paymentId}`);
-      }
-    }
-  } catch (dbErr: any) {
-    console.warn(`[Worker] Failed to check Telegram preferences for ${data.paymentId}: ${dbErr.message}`);
-  }
-
-  return resendData;
-};
+export const paymentAlertWorkerProcessor = async (job: { data: AlertJobData }) => processAlertDispatch(job.data);
 
 export function createRedisConnectionConfig() {
   const sentinelsRaw = process.env.REDIS_SENTINELS;
@@ -408,31 +353,7 @@ try {
   alertQueueEvents = new QueueEvents('payment-alerts', { connection });
 
   alertWorker = new Worker<AlertJobData>('payment-alerts', async (job) => {
-    const data = job.data;
-    // Bind the correlation ID from the enqueuing request so every log line
-    // produced during job processing shares the same requestId.
-    const jobLog = createLogger({ module: 'AlertWorker', requestId: data.requestId });
-
-    const { data: resendData, error } = await resend.emails.send({
-      from: 'Stellar Alerts <alerts@resend.dev>',
-      to: [data.fromAddress],
-      subject: `Payment Receipt: ${data.amount} ${data.asset}`,
-      html: `
-        <h1>Payment Receipt</h1>
-        <p><strong>Payment ID:</strong> ${data.paymentId}</p>
-        <p><strong>Transaction Hash:</strong> ${data.txHash}</p>
-        <p><strong>Amount:</strong> ${data.amount} ${data.asset}</p>
-        <p><strong>From Address:</strong> ${data.fromAddress}</p>
-        <p><strong>Received At:</strong> ${data.receivedAt}</p>
-      `,
-      });
-
-    if (error) {
-      throw new Error(`Resend Error: ${error.message}`);
-    }
-
-    jobLog.info({ paymentId: data.paymentId }, 'Sent email receipt');
-    return resendData;
+    return processAlertDispatch(job.data);
   }, { connection });
 
   alertQueueEvents.on("failed", async ({ jobId, failedReason }) => {
@@ -448,9 +369,7 @@ try {
     } catch (e: any) {
       queueLog.warn({ jobId, err: e.message }, 'Could not route job to DLQ');
     }
-  } catch (err: any) {
-    console.warn(`[Worker] Failed to dispatch Slack alerts for ${data.paymentId}: ${err.message}`);
-  }
+  });
 
   queueLog.info({ host: redisHost, port: redisPort }, '📡 BullMQ payment-alerts queue initialized');
 } catch (err: any) {
@@ -473,11 +392,10 @@ export async function failedJobHandler({ jobId, failedReason }: { jobId?: string
     console.warn(`[Queue] Failed to process DLQ routing for ${jobId}: ${err.message}`);
   }
 }
-<<<<<<< HEAD
 
 export async function processAlertDispatch(data: AlertJobData) {
   // Get user's active webhooks
-  const wallet = await prisma.wallet.findUnique({
+  let wallet = await prisma.wallet.findUnique({
     where: { id: data.walletId },
     include: {
       user: {
@@ -490,6 +408,29 @@ export async function processAlertDispatch(data: AlertJobData) {
       },
     },
   });
+
+  if (!wallet && data.paymentId) {
+    const payment: any = await prisma.payment.findUnique({
+      where: { id: data.paymentId },
+      include: {
+        wallet: {
+          include: {
+            user: {
+              include: {
+                webhooks: {
+                  where: { isActive: true },
+                },
+                notifyPrefs: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (payment?.wallet) {
+      wallet = payment.wallet;
+    }
+  }
 
   // Prepare webhook payload
   const webhookPayload = {

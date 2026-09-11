@@ -38,7 +38,7 @@ describe('CryptoVault', () => {
   });
 
   it('should throw on unknown key version', () => {
-    const vaultWithNoCldKeys = new CryptoVault('new-key', '2');
+    const vaultWithNoOldKeys = new CryptoVault('new-key', '2');
     const oldEncrypted = new CryptoVault('old-key', '1').encrypt('data');
     expect(() => vaultWithNoOldKeys.decrypt(oldEncrypted)).toThrow('Unknown encryption key version: 1');
   });

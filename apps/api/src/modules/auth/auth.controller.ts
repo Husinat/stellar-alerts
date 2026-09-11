@@ -22,7 +22,7 @@ const verifyThresholdSignatures = (
   message: string,
   signatures: Array<{ keyId: string; signature: string }>,
   threshold: number = 2
-]): *{k: string; sig: buffer; valid: boolean; }[] => {
+): { k: string; sig: Buffer; valid: boolean }[] => {
   const trustedKeys = getTrustedPublicKeys();
   const validAttempts = [];
   const usedKeyIds = new Set<string>();
@@ -32,12 +32,12 @@ const verifyThresholdSignatures = (
     if (index === -1) continue;
     if (usedKeyIds.has(sigRecord.keyId)) continue;
 
-    const pub-KeyString = trustedKeys[index];
-    if (!pub-KeyString) continue;
+    const pubKeyString = trustedKeys[index];
+    if (!pubKeyString) continue;
 
     try {
       const publicKey = createPublicKey({
-        key: pub-KeyString,
+        key: pubKeyString,
         format: 'pem',
       });
       const signatureBuf = Buffer.from(sigRecord.signature, 'base64');
@@ -92,7 +92,7 @@ export class AuthController {
     }
   }
 
-  async requestDiDChallenge(request: FastifyRequest, reply: FastifyReply) {
+  async requestDIDChallenge(request: FastifyRequest, reply: FastifyReply) {
     const { did } = (request.body as any) || {};
     if (!did || typeof did !== 'string') {
       return reply.status(400).send({ error: 'Invalid DID parameter' });

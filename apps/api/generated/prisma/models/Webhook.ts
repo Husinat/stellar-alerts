@@ -20,15 +20,28 @@ export type WebhookModel = runtime.Types.Result.DefaultSelection<Prisma.$Webhook
 
 export type AggregateWebhook = {
   _count: WebhookCountAggregateOutputType | null
+  _avg: WebhookAvgAggregateOutputType | null
+  _sum: WebhookSumAggregateOutputType | null
   _min: WebhookMinAggregateOutputType | null
   _max: WebhookMaxAggregateOutputType | null
+}
+
+export type WebhookAvgAggregateOutputType = {
+  keyVersion: number | null
+}
+
+export type WebhookSumAggregateOutputType = {
+  keyVersion: number | null
 }
 
 export type WebhookMinAggregateOutputType = {
   id: string | null
   userId: string | null
   url: string | null
-  secret: string | null
+  secretCiphertext: string | null
+  secretIv: string | null
+  secretAuthTag: string | null
+  keyVersion: number | null
   payloadTemplate: string | null
   isActive: boolean | null
   createdAt: Date | null
@@ -38,7 +51,10 @@ export type WebhookMaxAggregateOutputType = {
   id: string | null
   userId: string | null
   url: string | null
-  secret: string | null
+  secretCiphertext: string | null
+  secretIv: string | null
+  secretAuthTag: string | null
+  keyVersion: number | null
   payloadTemplate: string | null
   isActive: boolean | null
   createdAt: Date | null
@@ -48,7 +64,10 @@ export type WebhookCountAggregateOutputType = {
   id: number
   userId: number
   url: number
-  secret: number
+  secretCiphertext: number
+  secretIv: number
+  secretAuthTag: number
+  keyVersion: number
   payloadTemplate: number
   isActive: number
   createdAt: number
@@ -56,11 +75,22 @@ export type WebhookCountAggregateOutputType = {
 }
 
 
+export type WebhookAvgAggregateInputType = {
+  keyVersion?: true
+}
+
+export type WebhookSumAggregateInputType = {
+  keyVersion?: true
+}
+
 export type WebhookMinAggregateInputType = {
   id?: true
   userId?: true
   url?: true
-  secret?: true
+  secretCiphertext?: true
+  secretIv?: true
+  secretAuthTag?: true
+  keyVersion?: true
   payloadTemplate?: true
   isActive?: true
   createdAt?: true
@@ -70,7 +100,10 @@ export type WebhookMaxAggregateInputType = {
   id?: true
   userId?: true
   url?: true
-  secret?: true
+  secretCiphertext?: true
+  secretIv?: true
+  secretAuthTag?: true
+  keyVersion?: true
   payloadTemplate?: true
   isActive?: true
   createdAt?: true
@@ -80,7 +113,10 @@ export type WebhookCountAggregateInputType = {
   id?: true
   userId?: true
   url?: true
-  secret?: true
+  secretCiphertext?: true
+  secretIv?: true
+  secretAuthTag?: true
+  keyVersion?: true
   payloadTemplate?: true
   isActive?: true
   createdAt?: true
@@ -125,6 +161,18 @@ export type WebhookAggregateArgs<ExtArgs extends runtime.Types.Extensions.Intern
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
+   * Select which fields to average
+  **/
+  _avg?: WebhookAvgAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
+   * Select which fields to sum
+  **/
+  _sum?: WebhookSumAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
    * Select which fields to find the minimum value
   **/
   _min?: WebhookMinAggregateInputType
@@ -155,6 +203,8 @@ export type WebhookGroupByArgs<ExtArgs extends runtime.Types.Extensions.Internal
   take?: number
   skip?: number
   _count?: WebhookCountAggregateInputType | true
+  _avg?: WebhookAvgAggregateInputType
+  _sum?: WebhookSumAggregateInputType
   _min?: WebhookMinAggregateInputType
   _max?: WebhookMaxAggregateInputType
 }
@@ -163,11 +213,16 @@ export type WebhookGroupByOutputType = {
   id: string
   userId: string
   url: string
-  secret: string
+  secretCiphertext: string
+  secretIv: string
+  secretAuthTag: string
+  keyVersion: number
   payloadTemplate: string | null
   isActive: boolean
   createdAt: Date
   _count: WebhookCountAggregateOutputType | null
+  _avg: WebhookAvgAggregateOutputType | null
+  _sum: WebhookSumAggregateOutputType | null
   _min: WebhookMinAggregateOutputType | null
   _max: WebhookMaxAggregateOutputType | null
 }
@@ -194,7 +249,10 @@ export type WebhookWhereInput = {
   id?: Prisma.StringFilter<"Webhook"> | string
   userId?: Prisma.StringFilter<"Webhook"> | string
   url?: Prisma.StringFilter<"Webhook"> | string
-  secret?: Prisma.StringFilter<"Webhook"> | string
+  secretCiphertext?: Prisma.StringFilter<"Webhook"> | string
+  secretIv?: Prisma.StringFilter<"Webhook"> | string
+  secretAuthTag?: Prisma.StringFilter<"Webhook"> | string
+  keyVersion?: Prisma.IntFilter<"Webhook"> | number
   payloadTemplate?: Prisma.StringNullableFilter<"Webhook"> | string | null
   isActive?: Prisma.BoolFilter<"Webhook"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Webhook"> | Date | string
@@ -207,7 +265,10 @@ export type WebhookOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   url?: Prisma.SortOrder
-  secret?: Prisma.SortOrder
+  secretCiphertext?: Prisma.SortOrder
+  secretIv?: Prisma.SortOrder
+  secretAuthTag?: Prisma.SortOrder
+  keyVersion?: Prisma.SortOrder
   payloadTemplate?: Prisma.SortOrderInput | Prisma.SortOrder
   isActive?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -223,7 +284,10 @@ export type WebhookWhereUniqueInput = Prisma.AtLeast<{
   NOT?: Prisma.WebhookWhereInput | Prisma.WebhookWhereInput[]
   userId?: Prisma.StringFilter<"Webhook"> | string
   url?: Prisma.StringFilter<"Webhook"> | string
-  secret?: Prisma.StringFilter<"Webhook"> | string
+  secretCiphertext?: Prisma.StringFilter<"Webhook"> | string
+  secretIv?: Prisma.StringFilter<"Webhook"> | string
+  secretAuthTag?: Prisma.StringFilter<"Webhook"> | string
+  keyVersion?: Prisma.IntFilter<"Webhook"> | number
   payloadTemplate?: Prisma.StringNullableFilter<"Webhook"> | string | null
   isActive?: Prisma.BoolFilter<"Webhook"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Webhook"> | Date | string
@@ -236,13 +300,18 @@ export type WebhookOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   url?: Prisma.SortOrder
-  secret?: Prisma.SortOrder
+  secretCiphertext?: Prisma.SortOrder
+  secretIv?: Prisma.SortOrder
+  secretAuthTag?: Prisma.SortOrder
+  keyVersion?: Prisma.SortOrder
   payloadTemplate?: Prisma.SortOrderInput | Prisma.SortOrder
   isActive?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   _count?: Prisma.WebhookCountOrderByAggregateInput
+  _avg?: Prisma.WebhookAvgOrderByAggregateInput
   _max?: Prisma.WebhookMaxOrderByAggregateInput
   _min?: Prisma.WebhookMinOrderByAggregateInput
+  _sum?: Prisma.WebhookSumOrderByAggregateInput
 }
 
 export type WebhookScalarWhereWithAggregatesInput = {
@@ -252,7 +321,10 @@ export type WebhookScalarWhereWithAggregatesInput = {
   id?: Prisma.StringWithAggregatesFilter<"Webhook"> | string
   userId?: Prisma.StringWithAggregatesFilter<"Webhook"> | string
   url?: Prisma.StringWithAggregatesFilter<"Webhook"> | string
-  secret?: Prisma.StringWithAggregatesFilter<"Webhook"> | string
+  secretCiphertext?: Prisma.StringWithAggregatesFilter<"Webhook"> | string
+  secretIv?: Prisma.StringWithAggregatesFilter<"Webhook"> | string
+  secretAuthTag?: Prisma.StringWithAggregatesFilter<"Webhook"> | string
+  keyVersion?: Prisma.IntWithAggregatesFilter<"Webhook"> | number
   payloadTemplate?: Prisma.StringNullableWithAggregatesFilter<"Webhook"> | string | null
   isActive?: Prisma.BoolWithAggregatesFilter<"Webhook"> | boolean
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Webhook"> | Date | string
@@ -261,7 +333,10 @@ export type WebhookScalarWhereWithAggregatesInput = {
 export type WebhookCreateInput = {
   id?: string
   url: string
-  secret: string
+  secretCiphertext: string
+  secretIv: string
+  secretAuthTag: string
+  keyVersion?: number
   payloadTemplate?: string | null
   isActive?: boolean
   createdAt?: Date | string
@@ -274,7 +349,10 @@ export type WebhookUncheckedCreateInput = {
   id?: string
   userId: string
   url: string
-  secret: string
+  secretCiphertext: string
+  secretIv: string
+  secretAuthTag: string
+  keyVersion?: number
   payloadTemplate?: string | null
   isActive?: boolean
   createdAt?: Date | string
@@ -285,7 +363,10 @@ export type WebhookUncheckedCreateInput = {
 export type WebhookUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   url?: Prisma.StringFieldUpdateOperationsInput | string
-  secret?: Prisma.StringFieldUpdateOperationsInput | string
+  secretCiphertext?: Prisma.StringFieldUpdateOperationsInput | string
+  secretIv?: Prisma.StringFieldUpdateOperationsInput | string
+  secretAuthTag?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.IntFieldUpdateOperationsInput | number
   payloadTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -298,7 +379,10 @@ export type WebhookUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   url?: Prisma.StringFieldUpdateOperationsInput | string
-  secret?: Prisma.StringFieldUpdateOperationsInput | string
+  secretCiphertext?: Prisma.StringFieldUpdateOperationsInput | string
+  secretIv?: Prisma.StringFieldUpdateOperationsInput | string
+  secretAuthTag?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.IntFieldUpdateOperationsInput | number
   payloadTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -310,7 +394,10 @@ export type WebhookCreateManyInput = {
   id?: string
   userId: string
   url: string
-  secret: string
+  secretCiphertext: string
+  secretIv: string
+  secretAuthTag: string
+  keyVersion?: number
   payloadTemplate?: string | null
   isActive?: boolean
   createdAt?: Date | string
@@ -319,7 +406,10 @@ export type WebhookCreateManyInput = {
 export type WebhookUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   url?: Prisma.StringFieldUpdateOperationsInput | string
-  secret?: Prisma.StringFieldUpdateOperationsInput | string
+  secretCiphertext?: Prisma.StringFieldUpdateOperationsInput | string
+  secretIv?: Prisma.StringFieldUpdateOperationsInput | string
+  secretAuthTag?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.IntFieldUpdateOperationsInput | number
   payloadTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -329,7 +419,10 @@ export type WebhookUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   url?: Prisma.StringFieldUpdateOperationsInput | string
-  secret?: Prisma.StringFieldUpdateOperationsInput | string
+  secretCiphertext?: Prisma.StringFieldUpdateOperationsInput | string
+  secretIv?: Prisma.StringFieldUpdateOperationsInput | string
+  secretAuthTag?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.IntFieldUpdateOperationsInput | number
   payloadTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -349,17 +442,27 @@ export type WebhookCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   url?: Prisma.SortOrder
-  secret?: Prisma.SortOrder
+  secretCiphertext?: Prisma.SortOrder
+  secretIv?: Prisma.SortOrder
+  secretAuthTag?: Prisma.SortOrder
+  keyVersion?: Prisma.SortOrder
   payloadTemplate?: Prisma.SortOrder
   isActive?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+}
+
+export type WebhookAvgOrderByAggregateInput = {
+  keyVersion?: Prisma.SortOrder
 }
 
 export type WebhookMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   url?: Prisma.SortOrder
-  secret?: Prisma.SortOrder
+  secretCiphertext?: Prisma.SortOrder
+  secretIv?: Prisma.SortOrder
+  secretAuthTag?: Prisma.SortOrder
+  keyVersion?: Prisma.SortOrder
   payloadTemplate?: Prisma.SortOrder
   isActive?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -369,10 +472,17 @@ export type WebhookMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   url?: Prisma.SortOrder
-  secret?: Prisma.SortOrder
+  secretCiphertext?: Prisma.SortOrder
+  secretIv?: Prisma.SortOrder
+  secretAuthTag?: Prisma.SortOrder
+  keyVersion?: Prisma.SortOrder
   payloadTemplate?: Prisma.SortOrder
   isActive?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+}
+
+export type WebhookSumOrderByAggregateInput = {
+  keyVersion?: Prisma.SortOrder
 }
 
 export type WebhookScalarRelationFilter = {
@@ -422,6 +532,14 @@ export type WebhookUncheckedUpdateManyWithoutUserNestedInput = {
   deleteMany?: Prisma.WebhookScalarWhereInput | Prisma.WebhookScalarWhereInput[]
 }
 
+export type IntFieldUpdateOperationsInput = {
+  set?: number
+  increment?: number
+  decrement?: number
+  multiply?: number
+  divide?: number
+}
+
 export type WebhookCreateNestedOneWithoutLogsInput = {
   create?: Prisma.XOR<Prisma.WebhookCreateWithoutLogsInput, Prisma.WebhookUncheckedCreateWithoutLogsInput>
   connectOrCreate?: Prisma.WebhookCreateOrConnectWithoutLogsInput
@@ -453,7 +571,10 @@ export type WebhookUpdateOneRequiredWithoutCircuitBreakerNestedInput = {
 export type WebhookCreateWithoutUserInput = {
   id?: string
   url: string
-  secret: string
+  secretCiphertext: string
+  secretIv: string
+  secretAuthTag: string
+  keyVersion?: number
   payloadTemplate?: string | null
   isActive?: boolean
   createdAt?: Date | string
@@ -464,7 +585,10 @@ export type WebhookCreateWithoutUserInput = {
 export type WebhookUncheckedCreateWithoutUserInput = {
   id?: string
   url: string
-  secret: string
+  secretCiphertext: string
+  secretIv: string
+  secretAuthTag: string
+  keyVersion?: number
   payloadTemplate?: string | null
   isActive?: boolean
   createdAt?: Date | string
@@ -505,7 +629,10 @@ export type WebhookScalarWhereInput = {
   id?: Prisma.StringFilter<"Webhook"> | string
   userId?: Prisma.StringFilter<"Webhook"> | string
   url?: Prisma.StringFilter<"Webhook"> | string
-  secret?: Prisma.StringFilter<"Webhook"> | string
+  secretCiphertext?: Prisma.StringFilter<"Webhook"> | string
+  secretIv?: Prisma.StringFilter<"Webhook"> | string
+  secretAuthTag?: Prisma.StringFilter<"Webhook"> | string
+  keyVersion?: Prisma.IntFilter<"Webhook"> | number
   payloadTemplate?: Prisma.StringNullableFilter<"Webhook"> | string | null
   isActive?: Prisma.BoolFilter<"Webhook"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Webhook"> | Date | string
@@ -514,7 +641,10 @@ export type WebhookScalarWhereInput = {
 export type WebhookCreateWithoutLogsInput = {
   id?: string
   url: string
-  secret: string
+  secretCiphertext: string
+  secretIv: string
+  secretAuthTag: string
+  keyVersion?: number
   payloadTemplate?: string | null
   isActive?: boolean
   createdAt?: Date | string
@@ -526,7 +656,10 @@ export type WebhookUncheckedCreateWithoutLogsInput = {
   id?: string
   userId: string
   url: string
-  secret: string
+  secretCiphertext: string
+  secretIv: string
+  secretAuthTag: string
+  keyVersion?: number
   payloadTemplate?: string | null
   isActive?: boolean
   createdAt?: Date | string
@@ -552,7 +685,10 @@ export type WebhookUpdateToOneWithWhereWithoutLogsInput = {
 export type WebhookUpdateWithoutLogsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   url?: Prisma.StringFieldUpdateOperationsInput | string
-  secret?: Prisma.StringFieldUpdateOperationsInput | string
+  secretCiphertext?: Prisma.StringFieldUpdateOperationsInput | string
+  secretIv?: Prisma.StringFieldUpdateOperationsInput | string
+  secretAuthTag?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.IntFieldUpdateOperationsInput | number
   payloadTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -564,7 +700,10 @@ export type WebhookUncheckedUpdateWithoutLogsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   url?: Prisma.StringFieldUpdateOperationsInput | string
-  secret?: Prisma.StringFieldUpdateOperationsInput | string
+  secretCiphertext?: Prisma.StringFieldUpdateOperationsInput | string
+  secretIv?: Prisma.StringFieldUpdateOperationsInput | string
+  secretAuthTag?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.IntFieldUpdateOperationsInput | number
   payloadTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -574,7 +713,10 @@ export type WebhookUncheckedUpdateWithoutLogsInput = {
 export type WebhookCreateWithoutCircuitBreakerInput = {
   id?: string
   url: string
-  secret: string
+  secretCiphertext: string
+  secretIv: string
+  secretAuthTag: string
+  keyVersion?: number
   payloadTemplate?: string | null
   isActive?: boolean
   createdAt?: Date | string
@@ -586,7 +728,10 @@ export type WebhookUncheckedCreateWithoutCircuitBreakerInput = {
   id?: string
   userId: string
   url: string
-  secret: string
+  secretCiphertext: string
+  secretIv: string
+  secretAuthTag: string
+  keyVersion?: number
   payloadTemplate?: string | null
   isActive?: boolean
   createdAt?: Date | string
@@ -612,7 +757,10 @@ export type WebhookUpdateToOneWithWhereWithoutCircuitBreakerInput = {
 export type WebhookUpdateWithoutCircuitBreakerInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   url?: Prisma.StringFieldUpdateOperationsInput | string
-  secret?: Prisma.StringFieldUpdateOperationsInput | string
+  secretCiphertext?: Prisma.StringFieldUpdateOperationsInput | string
+  secretIv?: Prisma.StringFieldUpdateOperationsInput | string
+  secretAuthTag?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.IntFieldUpdateOperationsInput | number
   payloadTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -624,7 +772,10 @@ export type WebhookUncheckedUpdateWithoutCircuitBreakerInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   url?: Prisma.StringFieldUpdateOperationsInput | string
-  secret?: Prisma.StringFieldUpdateOperationsInput | string
+  secretCiphertext?: Prisma.StringFieldUpdateOperationsInput | string
+  secretIv?: Prisma.StringFieldUpdateOperationsInput | string
+  secretAuthTag?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.IntFieldUpdateOperationsInput | number
   payloadTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -634,7 +785,10 @@ export type WebhookUncheckedUpdateWithoutCircuitBreakerInput = {
 export type WebhookCreateManyUserInput = {
   id?: string
   url: string
-  secret: string
+  secretCiphertext: string
+  secretIv: string
+  secretAuthTag: string
+  keyVersion?: number
   payloadTemplate?: string | null
   isActive?: boolean
   createdAt?: Date | string
@@ -643,7 +797,10 @@ export type WebhookCreateManyUserInput = {
 export type WebhookUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   url?: Prisma.StringFieldUpdateOperationsInput | string
-  secret?: Prisma.StringFieldUpdateOperationsInput | string
+  secretCiphertext?: Prisma.StringFieldUpdateOperationsInput | string
+  secretIv?: Prisma.StringFieldUpdateOperationsInput | string
+  secretAuthTag?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.IntFieldUpdateOperationsInput | number
   payloadTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -654,7 +811,10 @@ export type WebhookUpdateWithoutUserInput = {
 export type WebhookUncheckedUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   url?: Prisma.StringFieldUpdateOperationsInput | string
-  secret?: Prisma.StringFieldUpdateOperationsInput | string
+  secretCiphertext?: Prisma.StringFieldUpdateOperationsInput | string
+  secretIv?: Prisma.StringFieldUpdateOperationsInput | string
+  secretAuthTag?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.IntFieldUpdateOperationsInput | number
   payloadTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -665,7 +825,10 @@ export type WebhookUncheckedUpdateWithoutUserInput = {
 export type WebhookUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   url?: Prisma.StringFieldUpdateOperationsInput | string
-  secret?: Prisma.StringFieldUpdateOperationsInput | string
+  secretCiphertext?: Prisma.StringFieldUpdateOperationsInput | string
+  secretIv?: Prisma.StringFieldUpdateOperationsInput | string
+  secretAuthTag?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.IntFieldUpdateOperationsInput | number
   payloadTemplate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -706,7 +869,10 @@ export type WebhookSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   id?: boolean
   userId?: boolean
   url?: boolean
-  secret?: boolean
+  secretCiphertext?: boolean
+  secretIv?: boolean
+  secretAuthTag?: boolean
+  keyVersion?: boolean
   payloadTemplate?: boolean
   isActive?: boolean
   createdAt?: boolean
@@ -720,7 +886,10 @@ export type WebhookSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   id?: boolean
   userId?: boolean
   url?: boolean
-  secret?: boolean
+  secretCiphertext?: boolean
+  secretIv?: boolean
+  secretAuthTag?: boolean
+  keyVersion?: boolean
   payloadTemplate?: boolean
   isActive?: boolean
   createdAt?: boolean
@@ -731,7 +900,10 @@ export type WebhookSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   id?: boolean
   userId?: boolean
   url?: boolean
-  secret?: boolean
+  secretCiphertext?: boolean
+  secretIv?: boolean
+  secretAuthTag?: boolean
+  keyVersion?: boolean
   payloadTemplate?: boolean
   isActive?: boolean
   createdAt?: boolean
@@ -742,13 +914,16 @@ export type WebhookSelectScalar = {
   id?: boolean
   userId?: boolean
   url?: boolean
-  secret?: boolean
+  secretCiphertext?: boolean
+  secretIv?: boolean
+  secretAuthTag?: boolean
+  keyVersion?: boolean
   payloadTemplate?: boolean
   isActive?: boolean
   createdAt?: boolean
 }
 
-export type WebhookOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "url" | "secret" | "payloadTemplate" | "isActive" | "createdAt", ExtArgs["result"]["webhook"]>
+export type WebhookOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "url" | "secretCiphertext" | "secretIv" | "secretAuthTag" | "keyVersion" | "payloadTemplate" | "isActive" | "createdAt", ExtArgs["result"]["webhook"]>
 export type WebhookInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   logs?: boolean | Prisma.Webhook$logsArgs<ExtArgs>
@@ -773,7 +948,10 @@ export type $WebhookPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     id: string
     userId: string
     url: string
-    secret: string
+    secretCiphertext: string
+    secretIv: string
+    secretAuthTag: string
+    keyVersion: number
     payloadTemplate: string | null
     isActive: boolean
     createdAt: Date
@@ -1206,7 +1384,10 @@ export interface WebhookFieldRefs {
   readonly id: Prisma.FieldRef<"Webhook", 'String'>
   readonly userId: Prisma.FieldRef<"Webhook", 'String'>
   readonly url: Prisma.FieldRef<"Webhook", 'String'>
-  readonly secret: Prisma.FieldRef<"Webhook", 'String'>
+  readonly secretCiphertext: Prisma.FieldRef<"Webhook", 'String'>
+  readonly secretIv: Prisma.FieldRef<"Webhook", 'String'>
+  readonly secretAuthTag: Prisma.FieldRef<"Webhook", 'String'>
+  readonly keyVersion: Prisma.FieldRef<"Webhook", 'Int'>
   readonly payloadTemplate: Prisma.FieldRef<"Webhook", 'String'>
   readonly isActive: Prisma.FieldRef<"Webhook", 'Boolean'>
   readonly createdAt: Prisma.FieldRef<"Webhook", 'DateTime'>

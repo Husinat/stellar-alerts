@@ -30,7 +30,8 @@ export class CryptoVault {
 
   private deriveKey(key: string): Buffer {
     // Ensure consistent 32-byte key for AES-256-GCM
-    return crypto.createHash('sha256').update(key).digest();
+    const safeKey = key || 'default_master_encryption_key_32bytes_long!';
+    return crypto.createHash('sha256').update(safeKey).digest();
   }
 
   encrypt(plaintext: string): string {

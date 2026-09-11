@@ -73,6 +73,16 @@ export type SorobanStateAudit = Prisma.SorobanStateAuditModel
  */
 export type SorobanContractSubscription = Prisma.SorobanContractSubscriptionModel
 /**
+ * Model SacTokenMintBurnEvent
+ * 
+ */
+export type SacTokenMintBurnEvent = Prisma.SacTokenMintBurnEventModel
+/**
+ * Model SacTokenSupply
+ * 
+ */
+export type SacTokenSupply = Prisma.SacTokenSupplyModel
+/**
  * Model MultisigTreasury
  * 
  */

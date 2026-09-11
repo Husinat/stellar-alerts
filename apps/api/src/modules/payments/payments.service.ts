@@ -1,19 +1,37 @@
-import { prismaRead } from '../../lib/prisma';
+import { prisma, prismaRead } from '../../lib/prisma';
 
 export class PaymentsService {
-  async getPayments(walletId: string, limit: number = 20) {
-    console.log(`[PaymentsService] Fetching up to ${limit} payments for wallet ${walletId}`);
+  async getPayments(userId: string, walletId?: string, limit: number = 20) {
+    const where: any = walletId
+      ? { walletId, wallet: { userId } }
+      : { wallet: { userId } };
+
+    console.log(
+      `[PaymentsService] Fetching up to ${limit} payments for user ${userId}${
+        walletId ? ` (wallet ${walletId})` : ' (all wallets)'
+      }`
+    );
+
     return prismaRead.payment.findMany({
-      where: { walletId },
+      where,
       orderBy: { receivedAt: 'desc' },
       take: limit,
     });
   }
 
-  async getPaymentsSummary(walletId: string) {
-    console.log(`[PaymentsService] Fetching summary for wallet ${walletId}`);
+  async getPaymentsSummary(userId: string, walletId?: string, fiatCurrency?: string) {
+    const where: any = walletId
+      ? { walletId, wallet: { userId } }
+      : { wallet: { userId } };
+
+    console.log(
+      `[PaymentsService] Fetching summary for user ${userId}${
+        walletId ? ` (wallet ${walletId})` : ' (all wallets)'
+      }`
+    );
+
     const result = await prismaRead.payment.aggregate({
-      where: { walletId },
+      where,
       _sum: { amount: true },
       _count: { id: true },
     });
@@ -28,7 +46,6 @@ export class PaymentsService {
       totalPayments: paymentCount,
     };
 
-    // Fiat conversion when requested
     if (fiatCurrency && isSupportedFiatCurrency(fiatCurrency)) {
       const conversion = await convertUsdToFiat(
         totalReceivedUsd,

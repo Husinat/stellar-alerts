@@ -454,14 +454,6 @@ export type WebhookCircuitBreakerUncheckedUpdateOneWithoutWebhookNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.WebhookCircuitBreakerUpdateToOneWithWhereWithoutWebhookInput, Prisma.WebhookCircuitBreakerUpdateWithoutWebhookInput>, Prisma.WebhookCircuitBreakerUncheckedUpdateWithoutWebhookInput>
 }
 
-export type IntFieldUpdateOperationsInput = {
-  set?: number
-  increment?: number
-  decrement?: number
-  multiply?: number
-  divide?: number
-}
-
 export type NullableDateTimeFieldUpdateOperationsInput = {
   set?: Date | string | null
 }

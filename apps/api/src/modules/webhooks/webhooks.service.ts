@@ -46,7 +46,7 @@ export class WebhooksService {
     ).length;
     const failedDeliveries = totalDeliveries - successfulDeliveries;
 
-    const healthPercentage = Number((successfulDeliveries / totalDeliveries) * 100).toFixed(2));
+    const healthPercentage = Number(((successfulDeliveries / totalDeliveries) * 100).toFixed(2));
     const status: WebhookHealthStatus = healthPercentage < 90.0 ? 'DEGRADED' : 'HEALTHY';
 
     // Latency heuristic: approximate based on payload/transport profile or baseline

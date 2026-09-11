@@ -258,6 +258,55 @@ function verifyParsedSignatureSet(
   return null;
 }
 
+async function verifyParsedSignatureKms(
+  payload: string,
+  parsed: ParsedWebhookHeader,
+  kmsSigner: KmsWebhookSigner,
+  toleranceMs: number,
+  nonceOverride?: string
+): Promise<boolean> {
+  const nonce = parsed.nonce || nonceOverride || '';
+
+  if (Math.abs(Date.now() - parsed.timestamp) > toleranceMs) {
+    return false;
+  }
+
+  const dataToSign = buildWebhookDataToSign(payload, parsed.timestamp, nonce);
+  const isValid = await kmsSigner.verifyHmacSha256(dataToSign, parsed.signature);
+  if (isValid) {
+    return true;
+  }
+
+  if (!parsed.nonce && !nonceOverride) {
+    const legacyDataToSign = buildWebhookDataToSign(payload, parsed.timestamp, '');
+    return kmsSigner.verifyHmacSha256(legacyDataToSign, parsed.signature);
+  }
+
+  return false;
+}
+
+async function verifyParsedSignatureSetKms(
+  payload: string,
+  primaryParsed: ParsedWebhookHeader,
+  secondaryParsed: ParsedWebhookHeader | null,
+  kmsSigner: KmsWebhookSigner,
+  toleranceMs: number,
+  nonceOverride?: string
+): Promise<ParsedWebhookHeader | null> {
+  if (await verifyParsedSignatureKms(payload, primaryParsed, kmsSigner, toleranceMs, nonceOverride)) {
+    return primaryParsed;
+  }
+
+  if (
+    secondaryParsed !== null &&
+    (await verifyParsedSignatureKms(payload, secondaryParsed, kmsSigner, toleranceMs, nonceOverride))
+  ) {
+    return secondaryParsed;
+  }
+
+  return null;
+}
+
 /**
  * Evaluates webhook verification and maps the outcome to an HTTP status code.
  * Malformed headers -> 400, invalid signatures -> 401, valid -> 200.
@@ -586,7 +635,7 @@ export async function verifyWebhookSignature(
       }
     }
 
-    const verifiedParsed = verifyParsedSignatureSet(
+    let verifiedParsed = verifyParsedSignatureSet(
       payloadResult.payload,
       parseResult.parsed,
       secondaryParsed,
@@ -594,6 +643,17 @@ export async function verifyWebhookSignature(
       toleranceMs,
       options.nonce
     );
+
+    if (!verifiedParsed && kmsSigner) {
+      verifiedParsed = await verifyParsedSignatureSetKms(
+        payloadResult.payload,
+        parseResult.parsed,
+        secondaryParsed,
+        kmsSigner,
+        toleranceMs,
+        options.nonce
+      );
+    }
 
     if (verifiedParsed === null) {
       return false;
