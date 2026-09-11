@@ -11,18 +11,11 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/auth/telegram', authController.verifyTelegramInitData.bind(authController));
   app.get('/auth/me', { preHandler: [authenticateHook] }, authController.getMe.bind(authController));
   app.post('/auth/logout', { preHandler: [authenticateHook] }, authController.logout.bind(authController));
-
-  app.post('/auth/tss/authorize', { preHandler: [authenticateHook] }, async (req, rep) => {
-    const { message, signatures } = req.body as { message: string; signatures: Array<{ partyId: string; signature: string }> };
-    if (!message || !Array.isArray(signatures) || signatures.length === 0) {
-      return rep.status(400).send({ error: 'Missing required TSS fields' });
-    }
-    try {
-      const authorized = await verifyTSSThreshold(message, signatures);
-      return rep.send({ authorized });
-    } catch (error) {
-      req.log.error(error, 'TSS verification failed');
-      return rep.status(500).send({ error: 'TSS verification failed' });
-    }
-  });
+  
+  // MFA endpoints (require authentication)
+  app.post('/auth/mfa/setup', { preHandler: [authenticateHook] }, authController.setupMFA.bind(authController));
+  app.post('/auth/mfa/enable', { preHandler: [authenticateHook] }, authController.enableMFA.bind(authController));
+  app.post('/auth/mfa/disable', { preHandler: [authenticateHook] }, authController.disableMFA.bind(authController));
+  app.get('/auth/mfa/status', { preHandler: [authenticateHook] }, authController.getMFAStatus.bind(authController));
 }
+

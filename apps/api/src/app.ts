@@ -75,7 +75,7 @@ export const buildApp = async () => {
   app.register(walletsRoutes);
   app.register(paymentsRoutes);
   app.register(webhooksRoutes);
-  app.register(sorobanStateRoutes);
+  app.register(notificationsRoutes);
 
   return app;
 };

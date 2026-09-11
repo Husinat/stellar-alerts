@@ -176,37 +176,93 @@ export class AuthController {
     }
   }
 
+  // ========== MFA Endpoints ==========
+
   /**
-   * Verifies a threshold of partial signatures against a `message` requesting sensitive action.
-   * @body "{ message: string, signatures: Array<{ keyId: string, signature: string }> }"
-   * Responds with 200 if threshold met and the signatures are valid, 403 otherwise.
+   * Setup MFA - Generate secret and QR code
    */
-  async verifyTss(request: FastifyRequest, reply: FastifyReply) {
-    const { message, signatures } = (request.body as any) || {};
-
-    if (typeof message !== 'string' || message.trim().length === 0) {
-      return reply.status(400).send({ error: 'Invalid message parameter' });
-    }
-
-    if (!Array.isArray(signatures) || signatures.length < 2) {
-      return reply.status(400).send({ error: 'At least 2 signatures required' });
-    }
-
-    if (signatures.some(s => !s || typeof s.keyId !== 'string' || typeof s.signature !== 'string')) {
-      return reply.status(400).send({ error: 'Invalid signature entry', details: 'Each signature must have a string keyId and a base64 signature string' });
+  async setupMFA(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
     }
 
     try {
-      const satisfied = verifyThresholdSignatures(message, signatures);
-      if (satisfied.length <2 ) {
-        return reply.status(403).send({
-          error: 'Threshold not met',
-          message: 'Requires at least 2 valid partial signatures from distinct keys.',
-        });
-      }
-      return reply.send({ success: true, message: 'Threshold signatures verified' });
+      const { secret, qrCode } = await mfaService.setupMFA(request.user.id, request.user.email);
+      return reply.send({
+        success: true,
+        secret,
+        qrCode,
+        message: 'Scan QR code with your authenticator app and verify with a 6-digit code',
+      });
     } catch (error: any) {
-      return reply.status(500).send({ error: 'Internal server error', message: error.message });
+      return reply.status(500).send({ error: 'Failed to setup MFA', message: error.message });
+    }
+  }
+
+  /**
+   * Enable MFA - Verify first TOTP token
+   */
+  async enableMFA(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    const { token } = (request.body as any) || {};
+    if (!token || typeof token !== 'string') {
+      return reply.status(400).send({ error: 'Missing or invalid token' });
+    }
+
+    try {
+      await mfaService.enableMFA(request.user.id, token);
+      return reply.send({
+        success: true,
+        message: 'MFA enabled successfully',
+      });
+    } catch (error: any) {
+      return reply.status(400).send({ error: 'Failed to enable MFA', message: error.message });
+    }
+  }
+
+  /**
+   * Disable MFA - Requires valid TOTP token
+   */
+  async disableMFA(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    const { token } = (request.body as any) || {};
+    if (!token || typeof token !== 'string') {
+      return reply.status(400).send({ error: 'Missing or invalid token' });
+    }
+
+    try {
+      await mfaService.disableMFA(request.user.id, token);
+      return reply.send({
+        success: true,
+        message: 'MFA disabled successfully',
+      });
+    } catch (error: any) {
+      return reply.status(400).send({ error: 'Failed to disable MFA', message: error.message });
+    }
+  }
+
+  /**
+   * Check MFA status
+   */
+  async getMFAStatus(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    try {
+      const enabled = await mfaService.isMFAEnabled(request.user.id);
+      return reply.send({
+        success: true,
+        mfaEnabled: enabled,
+      });
+    } catch (error: any) {
+      return reply.status(500).send({ error: 'Failed to check MFA status', message: error.message });
     }
   }
 }
