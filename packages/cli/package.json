@@ -1,0 +1,25 @@
+{
+  "name": "stellar-alerts-cli",
+  "version": "1.0.0",
+  "description": "CLI tool for managing Stellar Alerts wallets and streams",
+  "type": "module",
+  "bin": {
+    "stellar-alerts-cli": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "chalk": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.0.0",
+    "tsx": "^4.23.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.0.5"
+  }
+}

@@ -11,6 +11,9 @@ dev.db
 scripts/
 !scripts/dr-failover.ts
 !scripts/generate-types.ts
+!scripts/k6-load-test.js
+!scripts/verify-migrations.ts
+!scripts/verify-migrations.test.ts
 !scripts/security-audit.ts
 # Note: a `!scripts/<file>` negation cannot un-ignore a file inside an
 # already-excluded parent directory (git limitation) — every negated/tracked

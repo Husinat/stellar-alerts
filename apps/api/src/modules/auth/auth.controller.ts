@@ -2,6 +2,63 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { requestLinkSchema, verifyLinkSchema, telegramInitDataSchema } from './auth.schema';
 import { authService } from './auth.service';
 import { TelegramInitDataError } from '../../utils/telegram';
+import { createPublicKey, verify as cryptoVerify } from 'crypto';
+
+const TRUSTED_KEY_IDS = ['key1', 'key2', 'key3'];
+
+const getTrustedPublicKeys = (): string[] => {
+  const raw = process.env.TSS_VERIFICATION_KEYS;
+  if (!raw) {
+    throw new Error('TSS_VERIFICATION_KEYS is not configured');
+  }
+  const keys = JSON.parse(raw);
+  if (!Array.isArray(keys) || keys.length <3 ) {
+    throw new Error('TSS_VERIFICATION_KEYS must be an array of 3 public keys');
+  }
+  return keys.map((key) => String(key));
+};
+
+const verifyThresholdSignatures = (
+  message: string,
+  signatures: Array<{ keyId: string; signature: string }>,
+  threshold: number = 2
+]): *{k: string; sig: buffer; valid: boolean; }[] => {
+  const trustedKeys = getTrustedPublicKeys();
+  const validAttempts = [];
+  const usedKeyIds = new Set<string>();
+
+  for (const sigRecord of signatures) {
+    const index = TRUSTED_KEY_IDS.indexOf(sigRecord.keyId);
+    if (index === -1) continue;
+    if (usedKeyIds.has(sigRecord.keyId)) continue;
+
+    const pub-KeyString = trustedKeys[index];
+    if (!pub-KeyString) continue;
+
+    try {
+      const publicKey = createPublicKey({
+        key: pub-KeyString,
+        format: 'pem',
+      });
+      const signatureBuf = Buffer.from(sigRecord.signature, 'base64');
+      const messageBuf = Buffer.from(message, 'utf8');
+      const isValid = cryptoVerify('sha256', messageBuf, publicKey, signatureBuf);
+      if (isValid) {
+        usedKeyIds.add(sigRecord.keyId);
+        validAttempts.push({
+          k: sigRecord.keyId,
+          sig: signatureBuf,
+          valid: true,
+        });
+      }
+    } catch (error) {
+      // invalid signature or key, skip
+      continue;
+    }
+  }
+
+  return validAttempts.length >= threshold ? validAttempts.slice(0, threshold) : [];
+};
 
 export class AuthController {
   async requestMagicLink(request: FastifyRequest, reply: FastifyReply) {
@@ -35,7 +92,7 @@ export class AuthController {
     }
   }
 
-  async requestDIDChallenge(request: FastifyRequest, reply: FastifyReply) {
+  async requestDiDChallenge(request: FastifyRequest, reply: FastifyReply) {
     const { did } = (request.body as any) || {};
     if (!did || typeof did !== 'string') {
       return reply.status(400).send({ error: 'Invalid DID parameter' });
@@ -116,6 +173,96 @@ export class AuthController {
       return reply.send({ success: true, message: 'Logged out successfully.' });
     } catch (error: any) {
       return reply.status(500).send({ error: 'Internal server error', message: error.message });
+    }
+  }
+
+  // ========== MFA Endpoints ==========
+
+  /**
+   * Setup MFA - Generate secret and QR code
+   */
+  async setupMFA(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    try {
+      const { secret, qrCode } = await mfaService.setupMFA(request.user.id, request.user.email);
+      return reply.send({
+        success: true,
+        secret,
+        qrCode,
+        message: 'Scan QR code with your authenticator app and verify with a 6-digit code',
+      });
+    } catch (error: any) {
+      return reply.status(500).send({ error: 'Failed to setup MFA', message: error.message });
+    }
+  }
+
+  /**
+   * Enable MFA - Verify first TOTP token
+   */
+  async enableMFA(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    const { token } = (request.body as any) || {};
+    if (!token || typeof token !== 'string') {
+      return reply.status(400).send({ error: 'Missing or invalid token' });
+    }
+
+    try {
+      await mfaService.enableMFA(request.user.id, token);
+      return reply.send({
+        success: true,
+        message: 'MFA enabled successfully',
+      });
+    } catch (error: any) {
+      return reply.status(400).send({ error: 'Failed to enable MFA', message: error.message });
+    }
+  }
+
+  /**
+   * Disable MFA - Requires valid TOTP token
+   */
+  async disableMFA(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    const { token } = (request.body as any) || {};
+    if (!token || typeof token !== 'string') {
+      return reply.status(400).send({ error: 'Missing or invalid token' });
+    }
+
+    try {
+      await mfaService.disableMFA(request.user.id, token);
+      return reply.send({
+        success: true,
+        message: 'MFA disabled successfully',
+      });
+    } catch (error: any) {
+      return reply.status(400).send({ error: 'Failed to disable MFA', message: error.message });
+    }
+  }
+
+  /**
+   * Check MFA status
+   */
+  async getMFAStatus(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    try {
+      const enabled = await mfaService.isMFAEnabled(request.user.id);
+      return reply.send({
+        success: true,
+        mfaEnabled: enabled,
+      });
+    } catch (error: any) {
+      return reply.status(500).send({ error: 'Failed to check MFA status', message: error.message });
     }
   }
 }

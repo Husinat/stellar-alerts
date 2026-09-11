@@ -15,8 +15,8 @@ interface SupervisedWorker {
   name: string;
   filename: string;
   child: ChildProcess | null;
-  pingTimer: NodeJS.Timeout | null;
-  pongTimeout: NodeJS.Timeout | null;
+  pingTimer: NodeTimeout | null;
+  pongTimeout: NodeTimeout | null;
   restartCount: number;
 }
 
@@ -35,7 +35,7 @@ function resolveWorkerScript(filename: string): { scriptPath: string; execArgv: 
   const ext = isTs ? '.ts' : '.js';
   return {
     scriptPath: path.join(__dirname, `${filename}${ext}`),
-    execArgv: isTs ? ['--require', 'tsx/cjs', '--expose-gc'] : ['--expose-gc'],
+    execArgv: isTs ? [' --require', 'tsx/cjs', '--expose-gc'] : ['--expose-gc'],
   };
 }
 
@@ -52,12 +52,10 @@ export class WorkerSupervisor {
       pongTimeout: null,
       restartCount: 0,
     };
-
-    const child = fork(scriptPath, [], { execArgv });
+    const child = fork(scriptPath, [], { execCargv});
     worker.child = child;
     this.workers.set(name, worker);
-
-    console.log(`[Supervisor] 🚀 Spawned worker "${name}" (pid ${child.pid})`);
+    console.log(`[Supervisor] 🐎 Spawned worker "${name}" (pid ${child.pid})`);
 
     child.on('message', (message: any) => {
       if (message?.type === 'pong') {
@@ -67,8 +65,8 @@ export class WorkerSupervisor {
 
     child.on('exit', (code, signal) => {
       console.error(
-        `[Supervisor] ⚠️ Worker "${name}" (pid ${child.pid}) exited — code=${code} signal=${signal}. ` +
-          `Restart #${worker.restartCount + 1} scheduled.`
+        `[Supervisor] ★‍ Worker "${name}" (pid ${child.pid}) exited -- code=${code} signal=${signal}. ` +
+        `Restart #${worker.restartCount + 1} scheduled.`
       );
       this.stopHeartbeat(worker);
       worker.child = null;
@@ -105,10 +103,10 @@ export class WorkerSupervisor {
 
       worker.pongTimeout = setTimeout(() => {
         console.error(
-          `[Supervisor] ⏱️ Worker "${worker.name}" (pid ${child.pid}) missed its heartbeat and appears frozen. ` +
-            `Killing so it can be restarted.`
+          `[Supervisor] ⍟– Worker "${worker.name}" (pid ${child.pid}) missed its heartbeat and appears frozen. ` +
+            'Killing so it can be restarted.'
         );
-        child.kill('SIGKILL');
+        child.kill('SIGKIL');
       }, PONG_TIMEOUT_MS);
     }, PING_INTERVAL_MS);
   }
@@ -130,13 +128,22 @@ export class WorkerSupervisor {
 export function startSupervisor(): WorkerSupervisor {
   const supervisor = new WorkerSupervisor();
   supervisor.spawn('watcher', 'watcher.worker');
+  supervisor.spawn('token-analytics', 'token-analytics.worker');
 
   if (env.SOROBAN_RENT_WORKER_ENABLED === 'true') {
     supervisor.spawn('soroban-rent', 'soroban-rent.worker');
   }
 
+  if (env.SOROBAN_INDEXER_WORKER_ENABLED === 'true') {
+    supervisor.spawn('soroban-indexer', 'soroban-indexer.worker');
+  }
+
   if (env.SOROBAN_STAKING_REWARD_WORKER_ENABLED === 'true') {
     supervisor.spawn('staking-reward', 'staking-reward.worker');
+  }
+
+  if (env.SOROBAN_SAC_WORKER_ENABLED === 'true') {
+    supervisor.spawn('soroban-sac', 'soroban-sac.worker');
   }
 
   return supervisor;

@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+import { generateTaxExportCsv } from '../../utils/tax-exporter';
 import { paymentsService } from './payments.service';
 
 const getPaymentsSchema = z.object({
@@ -14,6 +15,9 @@ const getSummarySchema = z.object({
   fiat: z.string().optional(),
 });
 
+const getTaxExportSchema = z.object({
+  walletId: z.string().optional(),
+  format: z.enum(['cointracker', 'koinly', 'irs8949']).optional().default('cointracker'),
 const getCrossLedgerSchema = z.object({
   walletId: z.string().optional(),
 });
@@ -53,6 +57,8 @@ export class PaymentsController {
     return reply.send({ success: true, summary });
   }
 
+  async getTaxExport(request: FastifyRequest, reply: FastifyReply) {
+    const parsed = getTaxExportSchema.safeParse(request.query);
   async getCrossLedgerAnalytics(request: FastifyRequest, reply: FastifyReply) {
     const parsed = getCrossLedgerSchema.safeParse(request.query);
     if (!parsed.success) {
@@ -62,6 +68,24 @@ export class PaymentsController {
       return reply.status(401).send({ error: 'Unauthorized', message: 'User not authenticated' });
     }
 
+    const payments = await paymentsService.getPayments(request.user.id, parsed.data.walletId, 5000);
+    const csv = generateTaxExportCsv(
+      payments.map((payment) => ({
+        date: payment.receivedAt,
+        asset: payment.asset,
+        quantity: payment.amount.toString(),
+        usdValue: payment.amount.toString(),
+        type: 'receive',
+        txHash: payment.txHash,
+        fromAddress: payment.fromAddress,
+      })),
+      parsed.data.format,
+    );
+
+    return reply
+      .header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="tax-export-${parsed.data.format}.csv"`)
+      .send(csv);
     const analytics = await paymentsService.getCrossLedgerAnalytics(
       request.user.id,
       parsed.data.walletId,

@@ -1,0 +1,1 @@
+import{verifyThresholdSignature as v}from'../tss-verifier';import{expect,it}from'vitest';it('rejects empty',()=>{expect(v('x',[],{threshold:2,publicKeys:[]})).toBe(false)});it('rejects invalid',()=>{expect(v('x',[{publicKey:'a',signature:'b'}],{threshold:2,publicKeys:['a']})).toBe(false)});

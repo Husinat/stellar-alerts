@@ -5,11 +5,14 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id          String                   @id @default(cuid())
+  id           String                  @id @default(cuid())
   email       String                   @unique
+  mfaSecret   String?                  // TOTP secret for MFA
+  mfaEnabled  Boolean                  @default(false)
   createdAt   DateTime                 @default(now())
   wallets     Wallet[]
   webhooks    Webhook[]
@@ -26,7 +29,7 @@ model Wallet {
   user       User             @relation(fields: [userId], references: [id])
   publicKey  String           @unique
   label      String?
-  createdAt  DateTime         @default(now())
+  createdAt   DateTime         @default(now())
   payments   Payment[]
   cursor     IngestionCursor?
 }
@@ -71,16 +74,19 @@ model NotificationPreference {
 }
 
 model Webhook {
-  id              String                   @id @default(cuid())
-  userId          String
-  user            User                     @relation(fields: [userId], references: [id])
-  url             String
-  secret          String
-  payloadTemplate String?
-  isActive        Boolean                  @default(true)
-  createdAt       DateTime                 @default(now())
-  logs            WebhookLog[]
-  circuitBreaker  WebhookCircuitBreaker?
+  id                String                   @id @default(cuid())
+  userId            String
+  user              User                     @relation(fields: [userId], references: [id])
+  url               String
+  secretCiphertext  String
+  secretIv          String
+  secretAuthTag     String
+  keyVersion        Int                      @default(1)
+  payloadTemplate   String?
+  isActive          Boolean                  @default(true)
+  createdAt         DateTime                 @default(now())
+  logs              WebhookLog[]
+  circuitBreaker    WebhookCircuitBreaker?
 }
 
 model WebhookLog {
@@ -123,6 +129,21 @@ model SorobanEventSnapshot {
   @@index([ledgerSeq])
 }
 
+model SorobanStateAudit {
+  id             String   @id @default(cuid())
+  contractId     String
+  ledgerKey      String
+  ledgerSeq      Int
+  snapshot       Json
+  patch          Json
+  previousLedger Int?
+  createdAt      DateTime @default(now())
+
+  @@unique([contractId, ledgerKey, ledgerSeq])
+  @@index([contractId, ledgerKey, ledgerSeq])
+  @@index([createdAt])
+}
+
 model SorobanContractSubscription {
   id             String   @id @default(cuid())
   userId         String
@@ -136,6 +157,33 @@ model SorobanContractSubscription {
   @@unique([userId, contractId, topic])
   @@index([contractId])
   @@index([userId])
+}
+
+model SacTokenMintBurnEvent {
+  id         String   @id @default(cuid())
+  contractId   String
+  supply       SacTokenSupply @relation(fields: [contractId], references: [contractId], onDelete: Cascade)
+  eventType   String   @default("mint")
+  amount       Decimal
+  from         String?
+  to           String?
+  ledgerSeq    Int
+  txHash        String?
+  createdAt     DateTime @default(now())
+
+  @@index([contractId, ledgerSeq])
+  @@index([eventType])
+  @@index([ledgerSeq])
+}
+
+model SacTokenSupply {
+  contractId        String   @id
+  mintBurnEvents    SacTokenMintBurnEvent[]
+  circulatingSupply Decimal  @default("0")
+  totalMinted       Decimal  @default("0")
+  totalBurned        Decimal  @default("0")
+  updatedAt          DateTime @updatedAt
+  createdAt           DateTime @default(now())
 }
 
 // A Stellar multisig account (e.g. a DAO treasury) being watched for pending
@@ -238,6 +286,59 @@ model DexSwapWatch {
   @@index([poolContractId])
 }
 
+// ── Soroban Topic Indexer (WASM sub-ledger event filter) ──────────────────
+//
+// High-throughput index of raw Soroban RPC event TOPIC arrays, decoded from
+// their base64 XDR encoding into searchable JSONB columns. The worker
+// (workers/soroban-indexer.worker.ts) sweeps new ledger ranges, decodes the
+// nested ScVal topic array of every contract event, and upserts one row per
+// event here. Dashboard filtering / historical queries run against the two
+// GIN indexes (created over the JSONB `topics` column and the `text[]`
+// `topicSymbols` column with native `CREATE INDEX ... USING gin` in
+// `ensureTopicIndexes`) to stay under the 50ms topic-search SLA.
+model SorobanTopicIndex {
+  id          String   @id @default(cuid())
+  contractId  String
+  ledgerSeq   Int
+  // Transaction hash the event was emitted in (present on RPC getEvents
+  // responses; null for Horizon provideEvents payloads that omit it).
+  txHash      String?
+  // Raw base64 XDR topic array exactly as returned by the RPC/metahorizon
+  // node — preserved verbatim for auditability / re-decode.
+  topicXdrJson Json
+  // Fully decoded, type-tagged topic array, e.g.
+  // [{"type":"symbol","value":"transfer"},{"type":"address","value":"G..."}].
+  // Backed by a GIN jsonb_path_ops index so containment (`@>`) lookups such
+  // as "all events mentioning address X in topic position 1" stay fast.
+  topics      Json
+  // Flat, deduplicated text[] of every symbol found anywhere inside the
+  // topic tree (lead event name first). Backed by a GIN array_ops index for
+  // fast `@>` / `&&` symbol filtering.
+  topicSymbols String[]
+  // Lead symbol of the topic array (conventionally topic[0], the event name)
+  // for cheap btree equality filters that never touch the GIN path.
+  topicSymbol String?
+  // Deterministic sha256 hex of the canonical JSON of `topics` — the dedupe
+  // key so a re-polled ledger range never double-inserts an event (txHash is
+  // not always present on every event source).
+  topicsHash  String
+  createdAt   DateTime @default(now())
+
+  @@unique([contractId, ledgerSeq, topicsHash])
+  @@index([contractId, ledgerSeq])
+  @@index([topicSymbol])
+  @@index([txHash])
+}
+
+// Per-contract sub-ledger checkpoint for the topic indexer.
+model SorobanTopicIndexCursor {
+  id         String   @id @default(cuid())
+  contractId String   @unique
+  ledgerSeq  Int
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+}
+
 // Dedup / audit record of a detected DEX swap event so a re-polled ledger
 // range doesn't re-alert on the same on-chain swap.
 model DexSwapEvent {
@@ -273,4 +374,3 @@ model SecurityAuditLog {
   @@index([txHash])
   @@index([createdAt])
 }
-

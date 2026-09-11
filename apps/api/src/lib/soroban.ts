@@ -6,11 +6,11 @@ import {
   MerkleProofStep,
 } from "../utils/merkle-verifier";
 import { decodeScAddress, decodeScAmount, formatTokenAmount } from "./stellar";
+import { sorobanStateService } from "../modules/soroban-state/soroban-state.service";
 
 const SOROBAN_RPC_URL =
   process.env.SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org";
 const LEDGER_BATCH_SIZE = 100;
-const MAX_EVENTS_PER_QUERY = 10000;
 const MAX_ACTIVE_CONTRACTS = 100;
 
 export const sorobanServer = new (StellarSdk as any).rpc.Server(
@@ -37,7 +37,7 @@ const contractRegistry = new Map<string, ContractRegistry>();
 
 /**
  * Loads active Soroban contract subscriptions into in-memory registry.
- * Maintains up to MAX_ACTIVE_CONTRACTS.
+ * Maintains up to MAX_ACTIVE_CONTRACTS contracts.
  */
 export async function loadContractRegistry(): Promise<
   Map<string, ContractRegistry>
@@ -199,6 +199,29 @@ export function verifySorobanContractStateProof(input: SorobanContractStateProof
   }
 }
 
+export interface SorobanLedgerEntrySnapshot {
+  key: string;
+  value: unknown;
+}
+
+/**
+ * Fetches contract storage entries at a ledger and records JSON state diffs.
+ * RPC errors are allowed to propagate so callers can retry the ledger.
+ */
+export async function snapshotContractState(contractId: string, ledgerSeq: number): Promise<number> {
+  const response = await sorobanServer.getLedgerEntries([getContractInstanceLedgerKey(contractId)]);
+  const entries = response.entries || [];
+  let recorded = 0;
+
+  for (const entry of entries) {
+    const ledgerKey = typeof entry.key === 'string' ? entry.key : JSON.stringify(entry.key);
+    const snapshot = (typeof entry.val === 'string' ? { value: entry.val } : entry.val) as any;
+    await sorobanStateService.recordSnapshot({ contractId, ledgerKey, ledgerSeq, snapshot });
+    recorded++;
+  }
+  return recorded;
+}
+
 export async function getSorobanLatestLedger(): Promise<number> {
   try {
     const health = await sorobanServer.getLatestLedger();
@@ -312,8 +335,16 @@ export interface ParsedSorobanSwap {
 
 function extractSwapTopicValue(topicEntry: any): string | null {
   if (typeof topicEntry === "string") return topicEntry;
-  if (topicEntry && typeof topicEntry === "object" && typeof topicEntry.symbol === "string") {
-    return topicEntry.symbol;
+  if (topicEntry && typeof topicEntry === "object") {
+    if (typeof topicEntry.symbol === "string") {
+      return topicEntry.symbol;
+    }
+    if (topicEntry.type === "symbol" && typeof topicEntry.value === "string") {
+      return topicEntry.value;
+    }
+    if (topicEntry.type === "string" && typeof topicEntry.value === "string") {
+      return topicEntry.value;
+    }
   }
   return null;
 }
@@ -406,6 +437,44 @@ export function parseSorobanTransferEvent(
     amount,
     topic,
     ledgerSeq: event.ledgerSeq || event.ledger,
+  };
+}
+
+export interface ParsedSorobanMintBurn {
+  contractId: string;
+  eventType: 'MINT' | 'BURN';
+  amount: string;
+  rawAmount?: bigint;
+  from: string;
+  to: string;
+  ledgerSeq?: number;
+}
+
+export function parseSorobanMintBurnEvent(event: any): ParsedSorobanMintBurn | null {
+  if (!event?.topic?.length) return null;
+  const topic = extractSwapTopicValue(event.topic[0]);
+  if (topic !== 'mint' && topic !== 'burn') return null;
+
+  const value = event.value ?? event.data ?? {};
+  const contractId = event.contractId || '';
+  const rawAmount = decodeScAmount(
+    value.amount ?? value.mint?.amount ?? value.burn?.amount ?? value,
+  );
+  if (rawAmount === null) return null;
+
+  const topicFrom = topic === 'burn' ? asAddressString(event.topic[1]) : '';
+  const topicTo = topic === 'mint' ? asAddressString(event.topic[event.topic.length - 1]) : '';
+  const from = asAddressString(value.from ?? value.burn?.from) || topicFrom;
+  const to = asAddressString(value.to ?? value.mint?.to) || topicTo;
+
+  return {
+    contractId,
+    eventType: topic === 'mint' ? 'MINT' : 'BURN',
+    amount: formatTokenAmount(rawAmount),
+    rawAmount,
+    from,
+    to,
+    ledgerSeq: event.ledgerSeq ?? event.ledger,
   };
 }
 
@@ -961,4 +1030,46 @@ export class StakingRewardTracker {
 
 export const stakingRewardTracker = new StakingRewardTracker();
 
+export class SacMintBurnAnalyticsAggregator {
+  private mintTotals = new Map<string, bigint>();
+  private burnTotals = new Map<string, bigint>();
 
+  processParsedEvent(event: ParsedSorobanMintBurn): void {
+    const contractId = event.contractId || "unknown";
+    const amount = event.rawAmount ?? 0n;
+    if (event.eventType === "MINT") {
+      this.mintTotals.set(contractId, (this.mintTotals.get(contractId) || 0n) + amount);
+    } else {
+      this.burnTotals.set(contractId, (this.burnTotals.get(contractId) || 0n) + amount);
+    }
+  }
+
+  processEventBatch(events: any[]): void {
+    for (const rawEvent of events) {
+      const parsed = parseSorobanMintBurnEvent(rawEvent);
+      if (parsed) this.processParsedEvent(parsed);
+    }
+  }
+
+  getCumulativeMintedAmount(contractId: string): string {
+    return formatTokenAmount(this.mintTotals.get(contractId) || 0n);
+  }
+
+  getCumulativeBurnedAmount(contractId: string): string {
+    return formatTokenAmount(this.burnTotals.get(contractId) || 0n);
+  }
+
+  getNetSupply(contractId: string): string {
+    return formatTokenAmount(
+      (this.mintTotals.get(contractId) || 0n) -
+        (this.burnTotals.get(contractId) || 0n),
+    );
+  }
+
+  reset(): void {
+    this.mintTotals.clear();
+    this.burnTotals.clear();
+  }
+}
+
+export const sacMintBurnAnalyticsAggregator = new SacMintBurnAnalyticsAggregator();
