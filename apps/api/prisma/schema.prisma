@@ -127,6 +127,21 @@ model SorobanEventSnapshot {
   @@index([ledgerSeq])
 }
 
+model SorobanStateAudit {
+  id             String   @id @default(cuid())
+  contractId     String
+  ledgerKey      String
+  ledgerSeq      Int
+  snapshot       Json
+  patch          Json
+  previousLedger Int?
+  createdAt      DateTime @default(now())
+
+  @@unique([contractId, ledgerKey, ledgerSeq])
+  @@index([contractId, ledgerKey, ledgerSeq])
+  @@index([createdAt])
+}
+
 model SorobanContractSubscription {
   id             String   @id @default(cuid())
   userId         String

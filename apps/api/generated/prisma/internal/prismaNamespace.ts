@@ -405,6 +405,7 @@ export const ModelName = {
   WebhookLog: 'WebhookLog',
   WebhookCircuitBreaker: 'WebhookCircuitBreaker',
   SorobanEventSnapshot: 'SorobanEventSnapshot',
+  SorobanStateAudit: 'SorobanStateAudit',
   SorobanContractSubscription: 'SorobanContractSubscription',
   MultisigTreasury: 'MultisigTreasury',
   MultisigSignerWatcher: 'MultisigSignerWatcher',
@@ -430,7 +431,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "wallet" | "ingestionCursor" | "payment" | "notificationPreference" | "webhook" | "webhookLog" | "webhookCircuitBreaker" | "sorobanEventSnapshot" | "sorobanContractSubscription" | "multisigTreasury" | "multisigSignerWatcher" | "pendingMultisigTransaction" | "anchorTransactionWatch" | "dexSwapWatch" | "sorobanTopicIndex" | "sorobanTopicIndexCursor" | "dexSwapEvent" | "securityAuditLog"
+    modelProps: "user" | "wallet" | "ingestionCursor" | "payment" | "notificationPreference" | "webhook" | "webhookLog" | "webhookCircuitBreaker" | "sorobanEventSnapshot" | "sorobanStateAudit" | "sorobanContractSubscription" | "multisigTreasury" | "multisigSignerWatcher" | "pendingMultisigTransaction" | "anchorTransactionWatch" | "dexSwapWatch" | "dexSwapEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1097,6 +1098,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.SorobanEventSnapshotCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.SorobanEventSnapshotCountAggregateOutputType> | number
+        }
+      }
+    }
+    SorobanStateAudit: {
+      payload: Prisma.$SorobanStateAuditPayload<ExtArgs>
+      fields: Prisma.SorobanStateAuditFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SorobanStateAuditFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SorobanStateAuditPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SorobanStateAuditFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SorobanStateAuditPayload>
+        }
+        findFirst: {
+          args: Prisma.SorobanStateAuditFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SorobanStateAuditPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SorobanStateAuditFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SorobanStateAuditPayload>
+        }
+        findMany: {
+          args: Prisma.SorobanStateAuditFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SorobanStateAuditPayload>[]
+        }
+        create: {
+          args: Prisma.SorobanStateAuditCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SorobanStateAuditPayload>
+        }
+        createMany: {
+          args: Prisma.SorobanStateAuditCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SorobanStateAuditCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SorobanStateAuditPayload>[]
+        }
+        delete: {
+          args: Prisma.SorobanStateAuditDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SorobanStateAuditPayload>
+        }
+        update: {
+          args: Prisma.SorobanStateAuditUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SorobanStateAuditPayload>
+        }
+        deleteMany: {
+          args: Prisma.SorobanStateAuditDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SorobanStateAuditUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SorobanStateAuditUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SorobanStateAuditPayload>[]
+        }
+        upsert: {
+          args: Prisma.SorobanStateAuditUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SorobanStateAuditPayload>
+        }
+        aggregate: {
+          args: Prisma.SorobanStateAuditAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSorobanStateAudit>
+        }
+        groupBy: {
+          args: Prisma.SorobanStateAuditGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SorobanStateAuditGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SorobanStateAuditCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SorobanStateAuditCountAggregateOutputType> | number
         }
       }
     }
@@ -1997,6 +2072,20 @@ export const SorobanEventSnapshotScalarFieldEnum = {
 export type SorobanEventSnapshotScalarFieldEnum = (typeof SorobanEventSnapshotScalarFieldEnum)[keyof typeof SorobanEventSnapshotScalarFieldEnum]
 
 
+export const SorobanStateAuditScalarFieldEnum = {
+  id: 'id',
+  contractId: 'contractId',
+  ledgerKey: 'ledgerKey',
+  ledgerSeq: 'ledgerSeq',
+  snapshot: 'snapshot',
+  patch: 'patch',
+  previousLedger: 'previousLedger',
+  createdAt: 'createdAt'
+} as const
+
+export type SorobanStateAuditScalarFieldEnum = (typeof SorobanStateAuditScalarFieldEnum)[keyof typeof SorobanStateAuditScalarFieldEnum]
+
+
 export const SorobanContractSubscriptionScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
@@ -2439,6 +2528,7 @@ export type GlobalOmitConfig = {
   webhookLog?: Prisma.WebhookLogOmit
   webhookCircuitBreaker?: Prisma.WebhookCircuitBreakerOmit
   sorobanEventSnapshot?: Prisma.SorobanEventSnapshotOmit
+  sorobanStateAudit?: Prisma.SorobanStateAuditOmit
   sorobanContractSubscription?: Prisma.SorobanContractSubscriptionOmit
   multisigTreasury?: Prisma.MultisigTreasuryOmit
   multisigSignerWatcher?: Prisma.MultisigSignerWatcherOmit

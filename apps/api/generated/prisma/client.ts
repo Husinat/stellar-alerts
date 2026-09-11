@@ -85,6 +85,11 @@ export type WebhookCircuitBreaker = Prisma.WebhookCircuitBreakerModel
  */
 export type SorobanEventSnapshot = Prisma.SorobanEventSnapshotModel
 /**
+ * Model SorobanStateAudit
+ * 
+ */
+export type SorobanStateAudit = Prisma.SorobanStateAuditModel
+/**
  * Model SorobanContractSubscription
  * 
  */

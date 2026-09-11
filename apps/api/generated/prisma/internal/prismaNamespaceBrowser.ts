@@ -60,6 +60,7 @@ export const ModelName = {
   WebhookLog: 'WebhookLog',
   WebhookCircuitBreaker: 'WebhookCircuitBreaker',
   SorobanEventSnapshot: 'SorobanEventSnapshot',
+  SorobanStateAudit: 'SorobanStateAudit',
   SorobanContractSubscription: 'SorobanContractSubscription',
   MultisigTreasury: 'MultisigTreasury',
   MultisigSignerWatcher: 'MultisigSignerWatcher',
@@ -205,6 +206,20 @@ export const SorobanEventSnapshotScalarFieldEnum = {
 } as const
 
 export type SorobanEventSnapshotScalarFieldEnum = (typeof SorobanEventSnapshotScalarFieldEnum)[keyof typeof SorobanEventSnapshotScalarFieldEnum]
+
+
+export const SorobanStateAuditScalarFieldEnum = {
+  id: 'id',
+  contractId: 'contractId',
+  ledgerKey: 'ledgerKey',
+  ledgerSeq: 'ledgerSeq',
+  snapshot: 'snapshot',
+  patch: 'patch',
+  previousLedger: 'previousLedger',
+  createdAt: 'createdAt'
+} as const
+
+export type SorobanStateAuditScalarFieldEnum = (typeof SorobanStateAuditScalarFieldEnum)[keyof typeof SorobanStateAuditScalarFieldEnum]
 
 
 export const SorobanContractSubscriptionScalarFieldEnum = {

@@ -10,6 +10,7 @@ import { authRoutes } from './modules/auth/auth.routes';
 import { walletsRoutes } from './modules/wallets/wallets.routes';
 import { paymentsRoutes } from './modules/payments/payments.routes';
 import { webhooksRoutes } from './modules/webhooks/webhooks.routes';
+import { sorobanStateRoutes } from './modules/soroban-state/soroban-state.routes';
 import { openApiOptions } from './openapi.config';
 
 export { openApiComponentSchemas, openApiOptions } from './openapi.config';
@@ -74,6 +75,7 @@ export const buildApp = async () => {
   app.register(walletsRoutes);
   app.register(paymentsRoutes);
   app.register(webhooksRoutes);
+  app.register(sorobanStateRoutes);
 
   return app;
 };

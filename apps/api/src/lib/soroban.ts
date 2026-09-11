@@ -6,6 +6,7 @@ import {
   MerkleProofStep,
 } from "../utils/merkle-verifier";
 import { decodeScAddress, decodeScAmount, formatTokenAmount } from "./stellar";
+import { sorobanStateService } from "../modules/soroban-state/soroban-state.service";
 
 const SOROBAN_RPC_URL =
   process.env.SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org";
@@ -196,6 +197,29 @@ export function verifySorobanContractStateProof(input: SorobanContractStateProof
   } catch {
     return false;
   }
+}
+
+export interface SorobanLedgerEntrySnapshot {
+  key: string;
+  value: unknown;
+}
+
+/**
+ * Fetches contract storage entries at a ledger and records JSON state diffs.
+ * RPC errors are allowed to propagate so callers can retry the ledger.
+ */
+export async function snapshotContractState(contractId: string, ledgerSeq: number): Promise<number> {
+  const response = await sorobanServer.getLedgerEntries([getContractInstanceLedgerKey(contractId)]);
+  const entries = response.entries || [];
+  let recorded = 0;
+
+  for (const entry of entries) {
+    const ledgerKey = typeof entry.key === 'string' ? entry.key : JSON.stringify(entry.key);
+    const snapshot = (typeof entry.val === 'string' ? { value: entry.val } : entry.val) as any;
+    await sorobanStateService.recordSnapshot({ contractId, ledgerKey, ledgerSeq, snapshot });
+    recorded++;
+  }
+  return recorded;
 }
 
 export async function getSorobanLatestLedger(): Promise<number> {
