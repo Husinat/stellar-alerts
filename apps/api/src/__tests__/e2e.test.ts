@@ -85,6 +85,21 @@ vi.mock('../lib/prisma', () => {
   };
 });
 
+const mockE2ERedisStore = new Map<string, string>();
+vi.mock('../lib/redis', () => ({
+  redis: {
+    set: vi.fn(async (key: string, val: string) => {
+      mockE2ERedisStore.set(key, val);
+      return 'OK';
+    }),
+    get: vi.fn(async (key: string) => mockE2ERedisStore.get(key) ?? null),
+    del: vi.fn(async (key: string) => {
+      mockE2ERedisStore.delete(key);
+      return 1;
+    }),
+  },
+}));
+
 describe('Full End-to-End Automated Integration Test Suite (Offline Horizon Mock)', () => {
   let mockHorizon: HorizonMockServer;
   let mockHorizonUrl: string;

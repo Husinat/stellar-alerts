@@ -43,7 +43,7 @@ describe('ActivityHeatmap', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: /Aug 29, 2026: 2 transactions/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /29 Aug 2026: 2 transactions/i })).toBeInTheDocument();
     expect({
       title: screen.getByRole('heading', { name: 'Activity' }).textContent,
       dayCount: screen.getAllByRole('button').length,

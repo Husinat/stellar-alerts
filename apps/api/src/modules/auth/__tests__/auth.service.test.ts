@@ -17,6 +17,21 @@ vi.mock('../../../lib/prisma', () => ({
   },
 }));
 
+const mockRedisStore = new Map<string, string>();
+vi.mock('../../../lib/redis', () => ({
+  redis: {
+    set: vi.fn(async (key: string, val: string) => {
+      mockRedisStore.set(key, val);
+      return 'OK';
+    }),
+    get: vi.fn(async (key: string) => mockRedisStore.get(key) ?? null),
+    del: vi.fn(async (key: string) => {
+      mockRedisStore.delete(key);
+      return 1;
+    }),
+  },
+}));
+
 import { prisma } from '../../../lib/prisma';
 
 describe('AuthService', () => {

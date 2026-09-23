@@ -34,7 +34,7 @@ describe('WebhookLogRetryModal', () => {
     })
 
     await waitFor(() => {
-      expect(getByText('Status: 200')).toBeTruthy()
+      expect(getByText((_, element) => element?.textContent?.trim() === 'Status: 200')).toBeTruthy()
     })
   })
 })
