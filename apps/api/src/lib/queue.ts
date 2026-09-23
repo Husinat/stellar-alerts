@@ -17,6 +17,7 @@ import { persistDeadLetter } from './dead-letter';
 import { validateUrlForSsrf } from '../utils/ssrf';
 import { decryptPersonalField } from '../utils/privacy';
 import { dispatchWhatsAppAlert } from '../utils/whatsapp';
+import { emailService } from '../services/email.service';
 
 function decryptWebhookSecret(webhook: {
   keyVersion: number;
@@ -651,47 +652,43 @@ export async function processAlertDispatch(data: AlertJobData) {
       }
     }
 
-    // Send email receipt to the payer's address of record.
-    await deliverWithIdempotency(
-      {
-        paymentId: data.paymentId,
-        channel: "email",
-        destination: data.fromAddress,
-        userId,
-      },
-      async () => {
-        await workerFairnessManager.acquireProviderBudget('email');
-        const { data: resendData, error } = await withDeadline(
-          () =>
-            resend.emails.send({
-              from: "Stellar Alerts <alerts@resend.dev>",
-              to: [data.fromAddress],
-              subject: `Payment Receipt: ${data.amount} ${data.asset}`,
-              html: `
-        <h1>Payment Receipt</h1>
-        <p><strong>Payment ID:</strong> ${data.paymentId}</p>
-        <p><strong>Transaction Hash:</strong> ${data.txHash}</p>
-        <p><strong>Amount:</strong> ${data.amount} ${data.asset}</p>
-        <p><strong>From Address:</strong> ${data.fromAddress}</p>
-        <p><strong>Received At:</strong> ${data.receivedAt}</p>
-      `,
-            }),
-          env.NOTIFICATION_PROVIDER_TIMEOUT_MS,
-          undefined,
-          'Resend Email',
-        );
-
-        if (error) {
-          throw new Error(error.message);
+    // Send email alert via emailService (Issue #263)
+    const recipientEmail = wallet?.user?.email || (data.fromAddress.includes('@') ? data.fromAddress : null);
+    if (recipientEmail) {
+      await deliverWithIdempotency(
+        {
+          paymentId: data.paymentId,
+          channel: "email",
+          destination: recipientEmail,
+          userId,
+        },
+        async () => {
+          await workerFairnessManager.acquireProviderBudget('email');
+          return emailService.sendPaymentReceipt(
+            {
+              recipientEmail,
+              emailEnabled: wallet?.user?.notifyPrefs?.emailEnabled ?? true,
+            },
+            {
+              paymentId: data.paymentId,
+              txHash: data.txHash,
+              amount: data.amount,
+              asset: data.asset,
+              assetIssuer: data.assetIssuer,
+              fromAddress: data.fromAddress,
+              receivedAt: data.receivedAt,
+            }
+          );
         }
-        console.log(`[Worker] Sent email receipt for ${data.paymentId}`);
-        return resendData;
-      },
-    ).catch(async (err: any) => {
-      console.warn(`[Worker] Email dispatch error: ${err.message}`);
-      await recordDeadLetter('email', data.fromAddress, err);
-      return null;
-    });
+      ).catch(async (err: any) => {
+        console.warn(`[Worker] Email dispatch error: ${err.message}`);
+        await recordDeadLetter('email', recipientEmail, err);
+        if (err.isRetriable) {
+          throw err;
+        }
+        return null;
+      });
+    }
   } finally {
     workerFairnessManager.releaseWalletSlot(data.walletId);
   }
