@@ -131,9 +131,22 @@ export class AuthController {
       return reply.status(400).send({ error: 'Invalid initData parameter', details: parsed.error.format() });
     }
 
+    const initData = parsed.data.initData.trim();
+    if (!initData.includes('hash=')) {
+      return reply.status(400).send({
+        error: 'Telegram authentication failed',
+        code: 'MISSING_HASH',
+        message: 'initData is missing the HMAC hash field required for WebApp validation.',
+      });
+    }
+
     try {
-      const result = await authService.verifyTelegramInitData(parsed.data.initData);
-      return reply.send({ success: true, ...result });
+      const result = await authService.verifyTelegramInitData(initData);
+      return reply.send({
+        success: true,
+        authMethod: 'telegram_webapp_hmac',
+        ...result,
+      });
     } catch (error: any) {
       if (error instanceof TelegramInitDataError) {
         const status = error.code === 'INVALID_SIGNATURE' || error.code === 'EXPIRED' ? 401 : 400;

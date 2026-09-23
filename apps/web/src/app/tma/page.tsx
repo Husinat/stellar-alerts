@@ -10,6 +10,13 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 type Phase = 'authenticating' | 'error' | 'ready';
 
+interface RecentPayment {
+  id: string;
+  amount: string;
+  asset: string;
+  receivedAt: string;
+}
+
 export default function TelegramMiniApp() {
   const [phase, setPhase] = useState<Phase>('authenticating');
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +27,7 @@ export default function TelegramMiniApp() {
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [telegramAlerts, setTelegramAlerts] = useState(true);
+  const [recentPayments, setRecentPayments] = useState<RecentPayment[]>([]);
 
   const authHeaders = useCallback(
     (token: string): Record<string, string> => ({ Authorization: `Bearer ${token}` }),
@@ -36,6 +44,28 @@ export default function TelegramMiniApp() {
         }
       } catch {
         /* keep whatever list we already have */
+      }
+    },
+    [authHeaders],
+  );
+
+  const loadRecentPayments = useCallback(
+    async (token: string) => {
+      try {
+        const res = await fetch(`${API_BASE}/payments?limit=5`, { headers: authHeaders(token) });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok && body.success && Array.isArray(body.payments)) {
+          setRecentPayments(
+            body.payments.map((payment: Record<string, unknown>) => ({
+              id: String(payment.id),
+              amount: String(payment.amount),
+              asset: String(payment.asset),
+              receivedAt: String(payment.receivedAt),
+            })),
+          );
+        }
+      } catch {
+        /* push feed is best-effort */
       }
     },
     [authHeaders],
@@ -67,7 +97,7 @@ export default function TelegramMiniApp() {
         if (cancelled) return;
         setSession(result);
         setPhase('ready');
-        await loadWallets(result.token);
+        await Promise.all([loadWallets(result.token), loadRecentPayments(result.token)]);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : 'Telegram sign-in failed.');
@@ -78,7 +108,12 @@ export default function TelegramMiniApp() {
     return () => {
       cancelled = true;
     };
-  }, [loadWallets]);
+  }, [loadRecentPayments, loadWallets]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.style.setProperty('color-scheme', 'dark');
+  }, []);
 
   const handleAddWallet = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -138,7 +173,10 @@ export default function TelegramMiniApp() {
   };
 
   return (
-    <div className="min-h-[100dvh] w-full bg-[#0b0b12] text-slate-100 px-4 py-5 flex flex-col gap-5">
+    <div
+      className="min-h-[var(--tg-viewport-height,100dvh)] w-full max-w-lg mx-auto bg-[#0b0b12] text-slate-100 px-4 py-5 flex flex-col gap-5"
+      data-testid="tma-shell"
+    >
       <header className="flex items-center gap-3">
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-white text-sm font-bold">
           ⚡
@@ -174,6 +212,39 @@ export default function TelegramMiniApp() {
 
       {phase === 'ready' && session && (
         <main className="flex flex-col gap-5">
+          <section
+            className="rounded-2xl bg-slate-900/70 border border-slate-800 p-4 flex flex-col gap-3"
+            aria-labelledby="tma-push-feed-title"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 id="tma-push-feed-title" className="text-sm font-semibold">
+                  Recent payment pushes
+                </h2>
+                <p className="text-xs text-slate-400">Live alert preview from your watched wallets.</p>
+              </div>
+            </div>
+            {recentPayments.length === 0 ? (
+              <p className="text-xs text-slate-500">No recent payments yet.</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {recentPayments.map((payment) => (
+                  <li
+                    key={payment.id}
+                    className="rounded-xl bg-slate-950/60 border border-slate-800 px-3 py-2 flex items-center justify-between gap-2 text-xs"
+                  >
+                    <span className="font-mono text-emerald-300">
+                      +{payment.amount} {payment.asset}
+                    </span>
+                    <time className="text-slate-500" dateTime={payment.receivedAt}>
+                      {new Date(payment.receivedAt).toLocaleString()}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
           <section className="rounded-2xl bg-slate-900/70 border border-slate-800 p-4 flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold">Telegram notifications</p>
