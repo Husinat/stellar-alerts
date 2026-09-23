@@ -18,4 +18,10 @@ export async function notificationsRoutes(app: FastifyInstance) {
     { preHandler: [authenticateHook] },
     notificationsController.getPreferences.bind(notificationsController)
   );
+
+  app.post(
+    '/notifications/test-ping',
+    { preHandler: [authenticateHook] },
+    notificationsController.sendTestPing.bind(notificationsController)
+  );
 }

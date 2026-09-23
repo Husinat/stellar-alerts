@@ -73,6 +73,40 @@ export class NotificationsController {
       });
     }
   }
+
+  /**
+   * Send a one-off test ping on a configured channel (used by the
+   * onboarding wizard to verify a link before activation).
+   */
+  async sendTestPing(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    const body = request.body as { channel?: string };
+    const channel = body?.channel;
+
+    if (channel !== 'telegram') {
+      return reply.status(400).send({
+        error: 'Invalid channel',
+        message: 'channel must be "telegram"',
+      });
+    }
+
+    try {
+      const result = await notificationsService.sendTestPing(request.user.id, channel);
+      return reply.status(result.success ? 200 : 502).send({
+        success: result.success,
+        message: result.message,
+      });
+    } catch (error: any) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Failed to send test ping',
+        message: error.message,
+      });
+    }
+  }
 }
 
 export const notificationsController = new NotificationsController();

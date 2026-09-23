@@ -6,6 +6,7 @@ import AuditWorkspace from '@/components/dashboard/AuditWorkspace';
 import { signOut, useSession } from 'next-auth/react';
 import { WalletDTO, PaymentDTO } from '@stellar-alerts/shared';
 import { WatcherForm } from '@/components/WatcherForm';
+import { OnboardingWizard } from '@/components/onboarding';
 import {
   DashboardGrid,
   SummaryStats,
@@ -37,6 +38,7 @@ export default function Home() {
   const [payments, setPayments] = useState<PaymentDTO[]>([]);
   const [isLoadingPayments, setIsLoadingPayments] = useState<boolean>(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState<boolean>(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [totalVolumeXLM, setTotalVolumeXLM] = useState<number>(0);
   const [totalPaymentsCount, setTotalPaymentsCount] = useState<number>(0);
@@ -180,6 +182,61 @@ export default function Home() {
     }
   };
 
+  // Onboarding wizard: each step throws on failure so the wizard can show an
+  // inline, retryable error instead of silently advancing.
+  const handleOnboardingConnectWallet = async (publicKey: string) => {
+    const res = await fetch('http://localhost:3001/wallets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getHeaders() },
+      body: JSON.stringify({ publicKey, label: 'Watched Wallet' }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to connect wallet');
+    }
+    batchReader.invalidateAll();
+    fetchDashboardData();
+  };
+
+  const handleOnboardingLinkTelegram = async (chatId: string) => {
+    const res = await fetch('http://localhost:3001/notifications/preferences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getHeaders() },
+      body: JSON.stringify({ telegramChatId: chatId, telegramEnabled: true }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to link Telegram');
+    }
+  };
+
+  const handleOnboardingTestPing = async () => {
+    const res = await fetch('http://localhost:3001/notifications/test-ping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getHeaders() },
+      body: JSON.stringify({ channel: 'telegram' }),
+    });
+    const data = await res.json();
+    return { success: Boolean(data.success), message: data.message || data.error || 'Unknown error' };
+  };
+
+  const handleOnboardingSavePreferences = async (prefs: { emailEnabled: boolean; telegramEnabled: boolean }) => {
+    const res = await fetch('http://localhost:3001/notifications/preferences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getHeaders() },
+      body: JSON.stringify(prefs),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to save preferences');
+    }
+  };
+
+  const handleOnboardingActivate = () => {
+    batchReader.invalidateAll();
+    fetchDashboardData();
+  };
+
   // Resend cooldown timer
   useEffect(() => {
     if (resendCooldown > 0) {
@@ -288,6 +345,12 @@ export default function Home() {
                 className="px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-gray-300 flex items-center gap-2 transition-colors cursor-pointer hover:border-cyan-500/40"
               >
                 <span>??</span> Alert Settings
+              </button>
+              <button
+                onClick={() => setIsOnboardingOpen(true)}
+                className="px-4 py-2 rounded-full bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-xs font-semibold text-purple-200 flex items-center gap-2 transition-colors cursor-pointer"
+              >
+                <span>🚀</span> Get Started
               </button>
               <div className="hidden sm:flex flex-col items-end">
                 <p className="font-semibold text-sm text-gray-200">{session.user?.name || 'Explorer'}</p>
@@ -437,6 +500,21 @@ export default function Home() {
           onClose={() => setIsNotificationModalOpen(false)}
           onSavePreferences={handleSavePreferences}
         />
+
+        {/* Three-step onboarding wizard: wallet connection → Telegram linking → notification preferences */}
+        {isOnboardingOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+            <OnboardingWizard
+              isOpen={isOnboardingOpen}
+              onClose={() => setIsOnboardingOpen(false)}
+              onConnectWallet={handleOnboardingConnectWallet}
+              onLinkTelegram={handleOnboardingLinkTelegram}
+              onSendTestPing={handleOnboardingTestPing}
+              onSavePreferences={handleOnboardingSavePreferences}
+              onActivate={handleOnboardingActivate}
+            />
+          </div>
+        )}
 
         {/* Command Palette ? press ?K / Ctrl+K to navigate & run quick actions */}
         <CommandPalette

@@ -8,6 +8,7 @@
 export { ApiAdapter } from './api.adapter';
 export { WalletAdapter } from './wallet.adapter';
 export { PaymentAdapter } from './payment.adapter';
+export { NotificationsAdapter } from './notifications.adapter';
 export type { ApiConfig } from './api.adapter';
 export type {
   GetWalletsResponse,
@@ -16,3 +17,7 @@ export type {
   GetPaymentsResponse,
   GetPaymentsSummaryResponse,
 } from './payment.adapter';
+export type {
+  UpdatePreferencesInput,
+  TestPingResult,
+} from './notifications.adapter';

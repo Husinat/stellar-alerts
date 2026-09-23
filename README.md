@@ -24,6 +24,7 @@ Stellar Alerts monitors registered Stellar public wallets in real time for incom
 - 🛡️ **HMAC SHA256 Webhook Signer**: Generates cryptographically verifiable `X-Stellar-Alerts-Signature` headers for webhook payloads.
 - 🪄 **1-Click Passwordless Auth**: Secure Magic Link email authentication (`/verify?token=...`) with zero password overhead.
 - 📊 **Modular React Dashboard**: Monitored wallets, summary statistics, and real-time payment history powered by Next.js and Tailwind CSS.
+- 🧙 **Resumable Onboarding Wizard**: A three-step freelancer setup flow (wallet connection → Telegram linking → notification preferences) with a test-ping check before activation; progress persists to `localStorage` so a refresh resumes exactly where the user left off.
 - 🧪 **Automated Vitest Test Suite**: Unit testing framework with 100% passing test coverage (`npm run test:api`).
 
 ---
