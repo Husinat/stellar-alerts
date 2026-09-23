@@ -34,7 +34,12 @@ describe('OpenAPI schema sync & type generator (issue #162)', () => {
     expect(Object.keys(schemas).sort()).toEqual([
       'CreateWalletInput',
       'CreateWebhookInput',
+      'DIDChallengeInput',
+      'DIDVerifyInput',
+      'DeadLetterIdParams',
+      'ListDeadLettersQuery',
       'RequestLinkInput',
+      'SuppressDeadLetterInput',
       'VerifyLinkInput',
     ]);
   });
@@ -48,8 +53,13 @@ describe('OpenAPI schema sync & type generator (issue #162)', () => {
     for (const schema of [
       'RequestLinkInput',
       'VerifyLinkInput',
+      'DIDChallengeInput',
+      'DIDVerifyInput',
       'CreateWalletInput',
       'CreateWebhookInput',
+      'DeadLetterIdParams',
+      'ListDeadLettersQuery',
+      'SuppressDeadLetterInput',
     ]) {
       expect(source).toContain(schema);
     }

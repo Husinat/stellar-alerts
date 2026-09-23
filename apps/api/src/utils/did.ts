@@ -13,6 +13,10 @@ export interface DIDChallenge {
   expiresAt: Date;
 }
 
+// 5 minute challenge validity, matching `generateDIDChallenge` and the Redis
+// TTL the challenge is persisted under in `auth.service.ts` (#270).
+export const DID_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+
 /**
  * Parses W3C Decentralized Identifier string (did:pkh / did:key).
  * Example inputs:
@@ -75,6 +79,24 @@ export function generateDIDChallenge(did: string): DIDChallenge {
     challenge,
     expiresAt,
   };
+}
+
+/**
+ * Returns true when the challenge's embedded issuance timestamp is older than
+ * the challenge TTL. Defense-in-depth on top of the Redis challenge store: a
+ * challenge is only ever valid for `DID_CHALLENGE_TTL_MS` milliseconds,
+ * regardless of client clock skew or a stale Redis entry.
+ */
+export function isDIDChallengeExpired(
+  challenge: string,
+  ttlMs: number = DID_CHALLENGE_TTL_MS,
+): boolean {
+  if (typeof challenge !== 'string') return true;
+  const lastColon = challenge.lastIndexOf(':');
+  if (lastColon === -1) return true;
+  const issuedAt = Number(challenge.slice(lastColon + 1));
+  if (!Number.isFinite(issuedAt)) return true;
+  return Date.now() - issuedAt > ttlMs;
 }
 
 /**
