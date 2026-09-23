@@ -2,6 +2,7 @@ import { Queue, QueueEvents, Job, Worker } from 'bullmq';
 import { Resend } from 'resend';
 import { prisma } from './prisma';
 import { createLogger } from './logger';
+import { emailService } from '../services/email.service';
 
 const queueLog = createLogger({ module: 'Queue' });
 
@@ -486,30 +487,34 @@ export async function processAlertDispatch(data: AlertJobData) {
     }
   }
 
-  // Send email alert
+  // Send email alert via emailService
   try {
-    const { data: resendData, error } = await resend.emails.send({
-      from: "Stellar Alerts <alerts@resend.dev>",
-      to: [data.fromAddress],
-      subject: `Payment Receipt: ${data.amount} ${data.asset}`,
-      html: `
-      <h1>Payment Receipt</h1>
-      <p><strong>Payment ID:</strong> ${data.paymentId}</p>
-      <p><strong>Transaction Hash:</strong> ${data.txHash}</p>
-      <p><strong>Amount:</strong> ${data.amount} ${data.asset}</p>
-      <p><strong>From Address:</strong> ${data.fromAddress}</p>
-      <p><strong>Received At:</strong> ${data.receivedAt}</p>
-    `,
-    });
-
-    if (error) {
-      console.warn(`[Worker] Resend Email Notice: ${error.message}`);
-    } else {
-      console.log(`[Worker] Sent email receipt for ${data.paymentId}`);
+    const recipientEmail = wallet?.user?.email || (data.fromAddress.includes('@') ? data.fromAddress : null);
+    if (recipientEmail) {
+      const emailResult = await emailService.sendPaymentReceipt(
+        {
+          recipientEmail,
+          emailEnabled: wallet?.user?.notifyPrefs?.emailEnabled ?? true,
+        },
+        {
+          paymentId: data.paymentId,
+          txHash: data.txHash,
+          amount: data.amount,
+          asset: data.asset,
+          assetIssuer: data.assetIssuer,
+          fromAddress: data.fromAddress,
+          receivedAt: data.receivedAt,
+        }
+      );
+      return emailResult;
     }
-    return resendData;
+    return null;
   } catch (err: any) {
     console.warn(`[Worker] Email dispatch error: ${err.message}`);
+    // If it's a retriable error, rethrow so BullMQ retries
+    if (err.isRetriable) {
+      throw err;
+    }
     return null;
   }
 }
