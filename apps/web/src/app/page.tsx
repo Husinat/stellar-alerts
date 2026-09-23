@@ -276,6 +276,12 @@ export default function Home() {
               >
                 <span>⚡</span> API Hub
               </Link>
+              <Link
+                href="/soroban"
+                className="px-4 py-2 rounded-full bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-xs font-semibold text-purple-300 flex items-center gap-1.5 transition-colors"
+              >
+                <span>🔮</span> Soroban Inspector
+              </Link>
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}
                 title="Search commands (?K)"
