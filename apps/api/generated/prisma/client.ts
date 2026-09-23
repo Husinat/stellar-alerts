@@ -65,6 +65,11 @@ export type Payment = Prisma.PaymentModel
  */
 export type NotificationPreference = Prisma.NotificationPreferenceModel
 /**
+ * Model WhatsAppDeliveryLog
+ * 
+ */
+export type WhatsAppDeliveryLog = Prisma.WhatsAppDeliveryLogModel
+/**
  * Model Webhook
  * 
  */
