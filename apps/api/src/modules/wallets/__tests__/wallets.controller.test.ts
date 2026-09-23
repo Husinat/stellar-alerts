@@ -6,6 +6,7 @@ vi.mock('../wallets.service', () => ({
   walletsService: {
     addWallet: vi.fn(),
     getWallets: vi.fn(),
+    getIngestionStatus: vi.fn(),
     removeWallet: vi.fn(),
   },
 }));
@@ -77,6 +78,29 @@ describe('WalletsController', () => {
       expect(mockReply.send).toHaveBeenCalledWith(
         expect.objectContaining({ error: 'Invalid payload' })
       );
+    });
+  });
+
+  describe('getIngestionStatus', () => {
+    it('returns cursor health for the requested wallet', async () => {
+      mockRequest = { user: { id: 'u-1' }, params: { id: 'w-1' } };
+      const ingestion = { walletId: 'w-1', status: 'active', consecutiveFailures: 0 };
+      vi.mocked(walletsService.getIngestionStatus).mockResolvedValue(ingestion as any);
+
+      await walletsController.getIngestionStatus(mockRequest, mockReply);
+
+      expect(walletsService.getIngestionStatus).toHaveBeenCalledWith('u-1', 'w-1');
+      expect(mockReply.send).toHaveBeenCalledWith({ success: true, ingestion });
+    });
+
+    it('returns 404 when the wallet does not exist or is not owned by the requester', async () => {
+      mockRequest = { user: { id: 'u-1' }, params: { id: 'w-missing' } };
+      vi.mocked(walletsService.getIngestionStatus).mockRejectedValue(new Error('Wallet not found'));
+
+      await walletsController.getIngestionStatus(mockRequest, mockReply);
+
+      expect(mockReply.status).toHaveBeenCalledWith(404);
+      expect(mockReply.send).toHaveBeenCalledWith({ error: 'Not Found', message: 'Wallet not found' });
     });
   });
 });
