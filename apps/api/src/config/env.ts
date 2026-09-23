@@ -30,6 +30,13 @@ const envSchema = z.object({
   SOROBAN_INDEXER_BENCHMARK_INTERVAL_MS: z.string().optional().default("3600000"),
   SOROBAN_INDEXER_BENCHMARK_DATA_ROWS: z.string().optional().default("10000"),
   SOROBAN_STAKING_REWARD_WORKER_ENABLED: z.string().optional().default("true"),
+  // Hard cap on uploaded WASM binaries for POST /wasm-analyzer/analyze. Real
+  // Soroban contracts are typically well under 1MB; this leaves headroom
+  // while still bounding worst-case parse time/memory for the static analyzer.
+  WASM_ANALYZER_MAX_UPLOAD_BYTES: z.coerce.number().int().positive().optional().default(5 * 1024 * 1024),
+  // Wall-clock budget for a single analysis pass before it's aborted and
+  // reported as a timeout finding rather than blocking the request forever.
+  WASM_ANALYZER_TIMEOUT_MS: z.coerce.number().int().positive().optional().default(5000),
 });
 export type Env = z.infer<typeof envSchema>;
 
@@ -89,6 +96,8 @@ const parseEnv = (): Env => {
       SOROBAN_INDEXER_BENCHMARK_INTERVAL_MS: "3600000",
       SOROBAN_INDEXER_BENCHMARK_DATA_ROWS: "10000",
       SOROBAN_STAKING_REWARD_WORKER_ENABLED: "true",
+      WASM_ANALYZER_MAX_UPLOAD_BYTES: 5 * 1024 * 1024,
+      WASM_ANALYZER_TIMEOUT_MS: 5000,
     } as Env;
   }
 
@@ -115,6 +124,8 @@ const parseEnv = (): Env => {
     SOROBAN_INDEXER_BENCHMARK_INTERVAL_MS: "3600000",
     SOROBAN_INDEXER_BENCHMARK_DATA_ROWS: "10000",
     SOROBAN_STAKING_REWARD_WORKER_ENABLED: "true",
+    WASM_ANALYZER_MAX_UPLOAD_BYTES: 5 * 1024 * 1024,
+    WASM_ANALYZER_TIMEOUT_MS: 5000,
   };
 };
 
