@@ -20,6 +20,7 @@ model User {
   multisigSignerWatches MultisigSignerWatcher[]
   anchorWatches         AnchorTransactionWatch[]
   dexSwapWatches        DexSwapWatch[]
+  alertRules            AlertRule[]
 }
 
 model Wallet {
@@ -31,6 +32,7 @@ model Wallet {
   createdAt   DateTime         @default(now())
   payments   Payment[]
   cursor     IngestionCursor?
+  alertRules AlertRule[]
 }
 
 model IngestionCursor {
@@ -70,6 +72,42 @@ model NotificationPreference {
   whatsappEnabled Boolean @default(false)
   language        String  @default("EN")
   filterRules     Json?   // Stores filter rule group as JSON
+}
+
+// A persisted, user-authored rule that gates payment alert dispatch. Distinct
+// from NotificationPreference.filterRules (a single legacy filter blob):
+// a user can have many named AlertRules, each optionally scoped to one
+// wallet, with an asset allow-list, a minimum amount threshold, and an
+// arbitrary FilterRuleGroup for advanced grouping (see lib/rules-engine.ts).
+model AlertRule {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Scopes the rule to one wallet; null applies it across all of the user's wallets.
+  walletId   String?
+  wallet     Wallet?   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  name       String?
+  // Asset codes this rule matches; empty array means "any asset".
+  assets     String[]  @default([])
+  minAmount  Decimal?
+  // Optional FilterRuleGroup JSON for AND/OR-grouped conditions beyond asset/minAmount.
+  conditions Json?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([walletId])
+}
+
+// Idempotency record: one row per payment that matched at least one active
+// AlertRule, so re-evaluating the same payment event (duplicate delivery,
+// retried job) never enqueues a second notification job.
+model AlertRuleDispatchLog {
+  id             String   @id @default(cuid())
+  paymentId      String   @unique
+  matchedRuleIds Json
+  createdAt      DateTime @default(now())
 }
 
 model Webhook {

@@ -21,6 +21,7 @@ Stellar Alerts monitors registered Stellar public wallets in real time for incom
 - 🔒 **100% Non-Custodial Security**: Only public key addresses (`G...`) are stored. Secret keys are never touched or requested.
 - 🔑 **StrKey Checksum Validation**: Enforces Base32 CRC16-XMODEM public key checksum validation at the API boundary and watcher loop.
 - 📨 **BullMQ Redis Alert Queue**: Asynchronous message queue with exponential retries for off-chain alert dispatches.
+- 🧮 **Persisted Alert-Rule Evaluator**: Evaluates a user's stored `AlertRule` records (per-wallet or account-wide, asset allow-lists, minimum amount thresholds, and AND/OR condition grouping) against each normalized payment event, enqueuing a notification job only when a rule matches and never twice for the same payment.
 - 🛡️ **HMAC SHA256 Webhook Signer**: Generates cryptographically verifiable `X-Stellar-Alerts-Signature` headers for webhook payloads.
 - 🪄 **1-Click Passwordless Auth**: Secure Magic Link email authentication (`/verify?token=...`) with zero password overhead.
 - 📊 **Modular React Dashboard**: Monitored wallets, summary statistics, and real-time payment history powered by Next.js and Tailwind CSS.

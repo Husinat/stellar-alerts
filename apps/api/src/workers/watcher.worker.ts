@@ -11,6 +11,7 @@ import {
 } from '../lib/soroban';
 import { withWalletLock } from '../lib/lock';
 import { shouldAlert, PaymentContext } from '../lib/rules-engine';
+import { evaluateAndDispatch, AlertRuleRecord, NormalizedPaymentEvent } from '../lib/alert-rule-evaluator';
 import { MemoryMonitor, MemorySnapshot } from '../utils/memory-monitor';
 import { createLogger } from '../lib/logger';
 import { trace, SpanStatusCode, TraceFlags } from '@opentelemetry/api';
@@ -97,26 +98,64 @@ export async function processPaymentRecord(
           },
         });
 
-        let shouldSendAlert = true;
+        const alertJobPayload = {
+          paymentId: payment.id,
+          txHash,
+          walletId: wallet.id,
+          amount,
+          asset,
+          assetIssuer,
+          fromAddress,
+          receivedAt: receivedAt.toISOString(),
+        };
+
+        // Persisted AlertRule records take priority when a user has any
+        // configured (see lib/alert-rule-evaluator.ts): only a matching
+        // rule enqueues a notification job, and duplicate delivery of the
+        // same payment event is a no-op. Users with no AlertRule rows keep
+        // the legacy NotificationPreference.filterRules gate (or, absent
+        // that too, the historical "always alert" default) unchanged.
+        let dispatched = false;
+        let usedAlertRules = false;
 
         if (wallet.userId) {
-          const notifyPrefs = await prisma.notificationPreference.findUnique({
+          const alertRules = await prisma.alertRule.findMany({
             where: { userId: wallet.userId },
           });
 
-          if ((notifyPrefs as any)?.filterRules) {
-            const paymentContext: PaymentContext = {
+          if (alertRules.length > 0) {
+            usedAlertRules = true;
+            const event: NormalizedPaymentEvent = {
+              paymentId: payment.id,
+              txHash,
+              walletId: wallet.id,
+              userId: wallet.userId,
               amount: Number(amount),
               asset,
+              assetIssuer,
               fromAddress,
               memo,
+              receivedAt: receivedAt.toISOString(),
             };
 
-            shouldSendAlert = shouldAlert((notifyPrefs as any)?.filterRules, paymentContext);
+            const result = await evaluateAndDispatch(event, {
+              findRules: async () => alertRules as unknown as AlertRuleRecord[],
+              hasDispatched: async (paymentId) =>
+                Boolean(await prisma.alertRuleDispatchLog.findUnique({ where: { paymentId } })),
+              recordDispatch: async (paymentId, matchedRuleIds) => {
+                await prisma.alertRuleDispatchLog.create({
+                  data: { paymentId, matchedRuleIds },
+                });
+              },
+              enqueueAlert: async () => enqueuePaymentAlert(alertJobPayload),
+            });
 
-            if (!shouldSendAlert) {
+            dispatched = result.enqueued;
+            span.setAttribute('payment.matchedAlertRules', result.matchedRuleIds.length);
+
+            if (result.matchedRuleIds.length === 0) {
               console.log(
-                `[WatcherWorker] 🔕 Payment filtered by rules for wallet (${wallet.publicKey.substring(
+                `[WatcherWorker] 🔕 No active AlertRule matched for wallet (${wallet.publicKey.substring(
                   0,
                   8
                 )}...): ${amount} ${asset}`
@@ -125,21 +164,42 @@ export async function processPaymentRecord(
           }
         }
 
-        if (shouldSendAlert) {
-          await enqueuePaymentAlert({
-            paymentId: payment.id,
-            txHash,
-            walletId: wallet.id,
-            amount,
-            asset,
-            assetIssuer,
-            fromAddress,
-            receivedAt: receivedAt.toISOString(),
-          });
-          span.setAttribute('payment.enqueued', true);
-        } else {
-          span.setAttribute('payment.enqueued', false);
+        if (!usedAlertRules) {
+          let shouldSendAlert = true;
+
+          if (wallet.userId) {
+            const notifyPrefs = await prisma.notificationPreference.findUnique({
+              where: { userId: wallet.userId },
+            });
+
+            if ((notifyPrefs as any)?.filterRules) {
+              const paymentContext: PaymentContext = {
+                amount: Number(amount),
+                asset,
+                fromAddress,
+                memo,
+              };
+
+              shouldSendAlert = shouldAlert((notifyPrefs as any)?.filterRules, paymentContext);
+
+              if (!shouldSendAlert) {
+                console.log(
+                  `[WatcherWorker] 🔕 Payment filtered by rules for wallet (${wallet.publicKey.substring(
+                    0,
+                    8
+                  )}...): ${amount} ${asset}`
+                );
+              }
+            }
+          }
+
+          if (shouldSendAlert) {
+            await enqueuePaymentAlert(alertJobPayload);
+            dispatched = true;
+          }
         }
+
+        span.setAttribute('payment.enqueued', dispatched);
       }
 
       const pagingToken = record.paging_token || record.pagingToken;
