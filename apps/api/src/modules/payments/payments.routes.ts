@@ -9,4 +9,5 @@ export async function paymentsRoutes(app: FastifyInstance) {
   app.get('/payments/summary', paymentsController.getPaymentsSummary.bind(paymentsController));
   app.get('/payments/tax-export', paymentsController.getTaxExport.bind(paymentsController));
   app.get('/payments/analytics/cross-ledger', paymentsController.getCrossLedgerAnalytics.bind(paymentsController));
+  app.get('/payments/:txHash/receipt', paymentsController.getReceipt.bind(paymentsController));
 }

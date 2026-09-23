@@ -225,6 +225,7 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({ payments = [], isLoa
                 <th className="py-3.5 px-4">Asset</th>
                 <th className="py-3.5 px-4">Sender Address</th>
                 <th className="py-3.5 px-4">Tx Hash</th>
+                <th className="py-3.5 px-4">Receipt</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
@@ -261,6 +262,17 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({ payments = [], isLoa
                     >
                       <span>{payment.txHash ? `${payment.txHash.substring(0, 8)}...` : 'View Tx'}</span>
                       <span className="text-[10px]">↗</span>
+                    </a>
+                  </td>
+                  <td className="py-3.5 px-4 whitespace-nowrap">
+                    <a
+                      href={`http://localhost:3001/payments/${payment.txHash}/receipt`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1 rounded-md text-xs font-medium bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                      title="Download PDF Receipt"
+                    >
+                      <span>📄</span> Receipt
                     </a>
                   </td>
                 </tr>
