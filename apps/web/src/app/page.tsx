@@ -270,6 +270,12 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-4">
+              <Link
+                href="/api-hub"
+                className="px-4 py-2 rounded-full bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-xs font-semibold text-indigo-300 flex items-center gap-1.5 transition-colors"
+              >
+                <span>⚡</span> API Hub
+              </Link>
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}
                 title="Search commands (?K)"
