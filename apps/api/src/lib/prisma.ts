@@ -3,6 +3,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { env } from '../config/env';
 import { resolvePoolConfig } from './db-pool';
 
+export type DatabaseTarget = 'PRIMARY' | 'REPLICA';
+
 function createClient(databaseUrl: string, label: string) {
   const config = resolvePoolConfig(databaseUrl);
   console.log(
@@ -15,7 +17,17 @@ function createClient(databaseUrl: string, label: string) {
 const primaryUrl = env.DATABASE_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/stellar_alerts';
 const replicaUrl = env.DATABASE_REPLICA_URL || process.env.DATABASE_REPLICA_URL;
 
-export const prisma = createClient(primaryUrl, 'primary');
+let primaryClient = createClient(primaryUrl, 'primary');
+
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const value = (primaryClient as unknown as Record<string | symbol, unknown>)[prop];
+    if (typeof value === 'function') {
+      return (value as (...args: unknown[]) => unknown).bind(primaryClient);
+    }
+    return value;
+  },
+});
 
 /**
  * Client for read-only queries. Points at DATABASE_REPLICA_URL when a read
@@ -43,6 +55,19 @@ export function getReadClient() {
 export async function switchDatabaseUrl(newUrl: string): Promise<void> {
   console.log(`[Prisma] Switching database URL to: ${newUrl}`);
   process.env.DATABASE_URL = newUrl;
+  setReadTarget('PRIMARY');
+
+  try {
+    await primaryClient.$disconnect();
+  } catch {
+    // Pool may not be connected during DR drills or unit tests.
+  }
+
+  primaryClient = createClient(newUrl, 'primary-promoted');
+
+  if (process.env.VITEST !== 'true') {
+    await primaryClient.$connect();
+  }
 }
 
 export async function connectWithRetry() {
