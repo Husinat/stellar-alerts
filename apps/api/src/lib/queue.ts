@@ -2,6 +2,7 @@ import { Queue, QueueEvents, Job, Worker } from 'bullmq';
 import { Resend } from 'resend';
 import { prisma } from './prisma';
 import { createLogger } from './logger';
+import { publishDeliveryEvent } from './realtime';
 
 const queueLog = createLogger({ module: 'Queue' });
 
@@ -203,13 +204,14 @@ export async function dispatchWebhookAndLog(webhookId: string, payload: any, ret
 
     const responseBody = await response.text();
 
-    await prisma.webhookLog.create({
+    const deliveryLog = await prisma.webhookLog.create({
       data: {
         webhookId,
         statusCode: response.status,
         responseBody: responseBody.substring(0, 5000),
       },
     });
+    await publishDeliveryEvent(webhook.userId, deliveryLog);
     adaptiveWebhookRateLimiter.clear(webhook.url);
 
     // Reset circuit breaker to closed on success
@@ -277,12 +279,20 @@ export async function dispatchWebhookAndLog(webhookId: string, payload: any, ret
       await updateCircuitBreakerState(webhookId, "closed", failureCount);
     }
 
-    await prisma.webhookLog.create({
+    const failureLog = await prisma.webhookLog.create({
       data: {
         webhookId,
         error: error.message.substring(0, 1000),
       },
     });
+
+    const failedWebhook = await prisma.webhook.findUnique({
+      where: { id: webhookId },
+      select: { userId: true },
+    });
+    if (failedWebhook) {
+      await publishDeliveryEvent(failedWebhook.userId, failureLog);
+    }
 
     console.error(
       `[WebhookDispatch] Failed to dispatch webhook ${webhookId}: ${error.message}`,

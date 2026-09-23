@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import NetworkVisualizer3D from '@/components/dashboard/NetworkVisualizer3D';
 import AuditWorkspace from '@/components/dashboard/AuditWorkspace';
 import { signOut, useSession } from 'next-auth/react';
-import { WalletDTO, PaymentDTO } from '@stellar-alerts/shared';
+import { WalletDTO, PaymentDTO, DeliveryEventDTO } from '@stellar-alerts/shared';
 import { WatcherForm } from '@/components/WatcherForm';
 import {
   DashboardGrid,
@@ -18,6 +18,7 @@ import {
   EmailTemplatePreview,
 } from '@/components/dashboard';
 import { useBatchReader } from '@/lib/hooks/useBatchReader';
+import { getSocket } from '@/lib/socket';
 
 export default function Home() {
   const { data: session } = useSession();
@@ -41,6 +42,8 @@ export default function Home() {
   const [totalVolumeXLM, setTotalVolumeXLM] = useState<number>(0);
   const [totalPaymentsCount, setTotalPaymentsCount] = useState<number>(0);
   const [crossLedgerAnalytics, setCrossLedgerAnalytics] = useState<any>(null);
+  const [isStreamConnected, setIsStreamConnected] = useState<boolean>(false);
+  const [latestDelivery, setLatestDelivery] = useState<DeliveryEventDTO | null>(null);
 
   // Helper to get auth headers (kept for non-batched endpoints like auth)
   const getHeaders = useCallback(() => {
@@ -129,6 +132,59 @@ export default function Home() {
       // fetchSummary();
     }
   }, [session, selectedWalletId, fetchDashboardData]);
+
+  // Kept in a ref (not a dependency) so the payment handler below always
+  // reads the current filter without tearing down/reconnecting the socket
+  // every time the user switches the selected wallet.
+  const selectedWalletIdRef = useRef(selectedWalletId);
+  useEffect(() => {
+    selectedWalletIdRef.current = selectedWalletId;
+  }, [selectedWalletId]);
+
+  // Live payment stream: relays persisted payment events for the signed-in
+  // user's own wallets over the authenticated WebSocket (server enforces
+  // tenant isolation — see apps/api/src/plugins/websocket.ts).
+  useEffect(() => {
+    const accessToken = (session as (typeof session & AppSession) | null)?.accessToken;
+    if (!accessToken) return;
+
+    const socket = getSocket();
+    socket.connect(accessToken);
+
+    const unsubscribeConnection = socket.on('connection', (msg) => {
+      setIsStreamConnected(msg.payload?.status === 'connected');
+    });
+
+    const unsubscribePayment = socket.onPayment((payment) => {
+      const currentWalletId = selectedWalletIdRef.current;
+      if (currentWalletId && payment.walletId !== currentWalletId) return;
+      setPayments((prev) => {
+        if (prev.some((p) => p.id === payment.id)) return prev;
+        return [payment, ...prev];
+      });
+      setTotalPaymentsCount((prev) => prev + 1);
+      setTotalVolumeXLM((prev) => prev + Number(payment.amount || 0));
+    });
+
+    const unsubscribeDelivery = socket.onDelivery((delivery) => {
+      setLatestDelivery(delivery);
+    });
+
+    return () => {
+      unsubscribeConnection();
+      unsubscribePayment();
+      unsubscribeDelivery();
+      socket.disconnect();
+      setIsStreamConnected(false);
+    };
+  }, [session]);
+
+  // Auto-dismiss the live delivery toast after a few seconds.
+  useEffect(() => {
+    if (!latestDelivery) return;
+    const timer = setTimeout(() => setLatestDelivery(null), 6000);
+    return () => clearTimeout(timer);
+  }, [latestDelivery]);
 
   const handleRemoveWallet = async (id: string) => {
     try {
@@ -255,6 +311,23 @@ export default function Home() {
           <div className="absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-blue-900/15 blur-[160px] mix-blend-screen"></div>
         </div>
 
+        {/* Live webhook delivery toast (populated over the authenticated WebSocket) */}
+        {latestDelivery && (
+          <div
+            data-testid="delivery-toast"
+            className="fixed bottom-4 right-4 left-4 sm:left-auto z-[60] max-w-sm px-4 py-3 rounded-xl bg-slate-900/90 border border-slate-700 backdrop-blur-xl shadow-2xl"
+          >
+            <p className="text-xs font-semibold text-white flex items-center gap-2">
+              <span>📬</span> Webhook Delivery
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              {latestDelivery.error
+                ? `Failed: ${latestDelivery.error}`
+                : `Status ${latestDelivery.statusCode ?? 'unknown'}`}
+            </p>
+          </div>
+        )}
+
         {/* Navigation Bar */}
         <header className="sticky top-0 z-50 bg-[#07070c]/70 backdrop-blur-xl border-b border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
           <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -373,6 +446,7 @@ export default function Home() {
                       const el = document.getElementById('add-wallet-section');
                       if (el) el.scrollIntoView({ behavior: 'smooth' });
                     }}
+                    isStreamConnected={isStreamConnected}
                   />
                 ),
               },
