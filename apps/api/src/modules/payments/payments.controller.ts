@@ -2,7 +2,8 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { generateTaxExportCsv } from '../../utils/tax-exporter';
 import { generateLedgerStatementPdf } from '../../utils/pdf-generator';
-import { prismaRead } from '../../lib/prisma';
+import { generateTransactionReceiptPdf } from '../../utils/receipt-generator';
+import { prismaRead, prisma } from '../../lib/prisma';
 import { paymentsService } from './payments.service';
 
 const getPaymentsSchema = z
@@ -181,6 +182,61 @@ export class PaymentsController {
       parsed.data.walletId,
     );
     return reply.send({ success: true, analytics });
+  }
+
+  async getReceipt(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized', message: 'User not authenticated' });
+    }
+
+    const { txHash } = request.params as { txHash: string };
+    if (!txHash) {
+      return reply.status(400).send({ error: 'Missing transaction hash parameter' });
+    }
+
+    const payment = await prisma.payment.findFirst({
+      where: {
+        OR: [
+          { txHash: txHash },
+          { id: txHash },
+        ],
+      },
+      include: {
+        wallet: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
+
+    if (!payment) {
+      return reply.status(404).send({ error: 'Payment transaction not found' });
+    }
+
+    if (payment.wallet.userId !== request.user.id) {
+      return reply.status(403).send({ error: 'Forbidden', message: 'Unauthorized access to transaction receipt' });
+    }
+
+    const { buffer, verificationHash } = await generateTransactionReceiptPdf({
+      paymentId: payment.id,
+      txHash: payment.txHash,
+      fromAddress: payment.fromAddress,
+      toWalletPublicKey: payment.wallet.publicKey,
+      walletLabel: payment.wallet.label,
+      amount: payment.amount.toString(),
+      asset: payment.asset,
+      assetIssuer: payment.assetIssuer,
+      memo: payment.memo,
+      receivedAt: payment.receivedAt,
+      userEmail: payment.wallet.user.email,
+    });
+
+    return reply
+      .header('Content-Type', 'application/pdf')
+      .header('Content-Disposition', `attachment; filename="receipt-${payment.txHash.slice(0, 12)}.pdf"`)
+      .header('X-Receipt-Verification-Hash', verificationHash)
+      .send(buffer);
   }
 }
 
