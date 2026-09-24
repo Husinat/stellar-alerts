@@ -568,6 +568,58 @@ export async function processAlertDispatch(data: AlertJobData) {
     });
   }
 
+  // Dispatch WhatsApp alert if configured (opt-in via notifyPrefs.whatsappEnabled)
+  if (wallet?.user?.notifyPrefs?.whatsappEnabled && wallet.user.notifyPrefs.whatsappNumber) {
+    const toNumber = wallet.user.notifyPrefs.whatsappNumber;
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const fromNumber = process.env.TWILIO_WHATSAPP_FROM;
+
+    if (!accountSid || !authToken || !fromNumber) {
+      console.warn(`[Worker] WhatsApp alert skipped for ${data.paymentId}: Twilio is not configured`);
+    } else {
+      // Idempotency guard: skip if this payment already has a successful
+      // WhatsApp delivery logged (duplicate/retried job dispatch).
+      const alreadyDelivered = await prisma.whatsAppDeliveryLog.findFirst({
+        where: { paymentId: data.paymentId, toNumber, success: true },
+      });
+
+      if (alreadyDelivered) {
+        console.log(`[Worker] WhatsApp alert already delivered for ${data.paymentId}, skipping`);
+      } else {
+        try {
+          const result = await dispatchWhatsAppAlert(toNumber, data, { accountSid, authToken, fromNumber });
+          await prisma.whatsAppDeliveryLog.create({
+            data: {
+              paymentId: data.paymentId,
+              toNumber,
+              success: result.success,
+              messageSid: result.messageSid,
+              status: result.status,
+              error: result.error,
+              attempts: result.attempts,
+            },
+          });
+
+          if (result.success) {
+            console.log(`[Worker] Sent WhatsApp receipt for ${data.paymentId} (sid: ${result.messageSid})`);
+          } else {
+            console.warn(`[Worker] Failed to send WhatsApp message for ${data.paymentId}: ${result.error}`);
+          }
+        } catch (err: any) {
+          if (err instanceof WhatsAppInvalidNumberError) {
+            await prisma.whatsAppDeliveryLog.create({
+              data: { paymentId: data.paymentId, toNumber, success: false, error: err.message, attempts: 0 },
+            });
+            console.warn(`[Worker] WhatsApp alert skipped for ${data.paymentId}: ${err.message}`);
+          } else {
+            console.warn(`[Worker] WhatsApp dispatch error for ${data.paymentId}: ${err.message}`);
+          }
+        }
+      }
+    }
+  }
+
   // Send email alert
   await deliverWithIdempotency(
     {
