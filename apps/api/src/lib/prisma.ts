@@ -3,8 +3,6 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { env } from '../config/env';
 import { resolvePoolConfig } from './db-pool';
 
-export type DatabaseTarget = 'PRIMARY' | 'REPLICA';
-
 function createClient(databaseUrl: string, label: string) {
   const config = resolvePoolConfig(databaseUrl);
   console.log(
@@ -36,6 +34,8 @@ export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
  */
 export const prismaRead = replicaUrl ? createClient(replicaUrl, 'replica') : prisma;
 export const replicaPrisma = prismaRead;
+
+export type DatabaseTarget = 'PRIMARY' | 'REPLICA';
 
 export let activeReadTarget: DatabaseTarget = 'REPLICA';
 

@@ -1,4 +1,5 @@
 import { prisma, prismaRead } from '../../lib/prisma';
+import { verifyZkProof } from '../../utils/zkp-verifier';
 
 export class WalletsService {
   async addWallet(userId: string, publicKey: string, label?: string, zkProof?: any, publicSignals?: string[]) {
