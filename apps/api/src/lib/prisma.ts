@@ -15,7 +15,7 @@ function createClient(databaseUrl: string, label: string) {
 }
 
 const primaryUrl = env.DATABASE_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/stellar_alerts';
-const replicaUrl = env.DATABASE_REPLICA_URL || process.env.DATABASE_REPLICA_URL;
+const replicaUrl = env.READ_REPLICA_URL || process.env.READ_REPLICA_URL;
 
 let primaryClient = createClient(primaryUrl, 'primary');
 
@@ -30,7 +30,7 @@ export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
 });
 
 /**
- * Client for read-only queries. Points at DATABASE_REPLICA_URL when a read
+ * Client for read-only queries. Points at READ_REPLICA_URL when a read
  * replica is configured and falls back to the primary otherwise, so callers can
  * use it unconditionally.
  */
