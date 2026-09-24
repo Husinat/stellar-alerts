@@ -142,3 +142,13 @@ export type DeadLetter = Prisma.DeadLetterModel
  * 
  */
 export type DeadLetterAudit = Prisma.DeadLetterAuditModel
+/**
+ * Model RefreshSession
+ * 
+ */
+export type RefreshSession = Prisma.RefreshSessionModel
+/**
+ * Model RefreshTokenHistory
+ * 
+ */
+export type RefreshTokenHistory = Prisma.RefreshTokenHistoryModel

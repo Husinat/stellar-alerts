@@ -22,6 +22,7 @@ model User {
   dexSwapWatches        DexSwapWatch[]
   deliveryAttempts NotificationDeliveryAttempt[]
   deadLetters        DeadLetter[]
+  refreshSessions    RefreshSession[]
 }
 
 model Wallet {
@@ -467,3 +468,47 @@ model DeadLetterAudit {
   @@index([deadLetterId])
   @@index([createdAt])
 }
+
+// ── Access token rotation & refresh-token reuse detection (#315) ─────────────
+//
+// Models session families, active refresh tokens, and token rotation history.
+// A RefreshSession tracks the active family and its currently valid JTI.
+// If an incoming refresh request presents a JTI that has already been consumed
+// (found in RefreshTokenHistory with isConsumed=true or != currentJti), reuse
+// detection triggers immediately: the family is revoked and a security alert
+// is recorded in SecurityAuditLog.
+model RefreshSession {
+  id               String                @id @default(cuid())
+  familyId         String                @unique
+  userId           String
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentJti       String                @unique
+  rotationCounter  Int                   @default(1)
+  isRevoked        Boolean               @default(false)
+  revocationReason String?
+  expiresAt        DateTime
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  history          RefreshTokenHistory[]
+
+  @@index([userId])
+  @@index([currentJti])
+  @@index([isRevoked])
+  @@index([expiresAt])
+}
+
+model RefreshTokenHistory {
+  id              String         @id @default(cuid())
+  familyId        String
+  session         RefreshSession @relation(fields: [familyId], references: [familyId], onDelete: Cascade)
+  jti             String         @unique
+  userId          String
+  rotationCounter Int
+  isConsumed      Boolean        @default(false)
+  consumedAt      DateTime?
+  createdAt       DateTime       @default(now())
+
+  @@index([familyId])
+  @@index([jti])
+  @@index([userId])
+}
