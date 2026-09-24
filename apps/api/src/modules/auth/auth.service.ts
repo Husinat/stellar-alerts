@@ -2,10 +2,12 @@ import { prisma } from '../../lib/prisma';
 import { env } from '../../config/env';
 import { generateMagicToken, generateSessionToken, verifyToken, MagicLinkPayload, UserPayload } from '../../utils/jwt';
 import { revokeToken } from '../../lib/tokenBlocklist';
-import { parseDID, generateDIDChallenge, verifyDIDSignature, DIDChallenge } from '../../utils/did';
+import { parseDID, generateDIDChallenge, verifyDIDSignature, isDIDChallengeExpired, DIDChallenge } from '../../utils/did';
 import { validateTelegramInitData, TelegramInitDataError, TelegramUser } from '../../utils/telegram';
 import jwt from 'jsonwebtoken';
 import { redis } from '../../lib/redis';
+
+const DID_CHALLENGE_TTL_SECONDS = 5 * 60;
 
 export class AuthService {
   async requestMagicLink(email: string): Promise<string> {
@@ -60,17 +62,47 @@ export class AuthService {
   }
 
   /**
-   * Generates a signed challenge for W3C Decentralized Identity (DID) authentication.
+   * Generates a signed challenge for W3C Decentralized Identity (DID)
+   * authentication. The issued challenge is persisted in Redis under a 5
+   * minute TTL so `verifyDIDAuth` can enforce that only the exact challenge we
+   * issued — and an unexpired one — can complete sign-in (#270). Each DID can
+   * hold at most one outstanding challenge; requesting a new one invalidates
+   * the previous.
    */
-  requestDIDChallenge(did: string): DIDChallenge {
+  async requestDIDChallenge(did: string): Promise<DIDChallenge> {
+    const challenge = generateDIDChallenge(did);
+    await redis.set(
+      `did:challenge:${did}`,
+      challenge.challenge,
+      'EX',
+      Math.ceil(DID_CHALLENGE_TTL_SECONDS),
+    );
     console.log(`[AuthService] 🆔 Requesting DID challenge for: ${did}`);
-    return generateDIDChallenge(did);
+    return challenge;
   }
 
   /**
-   * Verifies signed DID challenge payload and issues a valid session JWT bound to the DID user identity.
+   * Verifies signed DID challenge payload and issues a valid session JWT bound
+   * to the DID user identity. The challenge must be the exact unexpired one
+   * issued by `requestDIDChallenge` (Redis-backed, single use) before the
+   * wallet signature is checked — a stale, replayed, or never-issued challenge
+   * is rejected up front.
    */
   async verifyDIDAuth(did: string, challenge: string, signature: string): Promise<{ token: string; user: { id: string; email: string; did: string } }> {
+    const challengeKey = `did:challenge:${did}`;
+    const storedChallenge = await redis.get(challengeKey);
+
+    if (!storedChallenge) {
+      throw new Error('DID challenge expired or not requested');
+    }
+    if (storedChallenge !== challenge) {
+      throw new Error('DID challenge does not match the one that was issued');
+    }
+    if (isDIDChallengeExpired(challenge)) {
+      await redis.del(challengeKey);
+      throw new Error('DID challenge expired or not requested');
+    }
+
     const parsed = parseDID(did);
     const isValid = verifyDIDSignature(did, challenge, signature);
 
@@ -78,6 +110,10 @@ export class AuthService {
       console.error(`[AuthService] ❌ DID signature verification failed for ${did}`);
       throw new Error('Invalid DID challenge signature');
     }
+
+    // Single use: consume the challenge on a successful sign-in so the same
+    // signed payload can never be replayed.
+    await redis.del(challengeKey);
 
     const syntheticEmail = `${parsed.address.toLowerCase().substring(0, 20)}@did.stellar-alerts.org`;
 
