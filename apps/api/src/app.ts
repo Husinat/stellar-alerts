@@ -15,6 +15,8 @@ import { notificationsRoutes } from './modules/notifications/notifications.route
 import { deadLettersRoutes } from './modules/dead-letters/dead-letters.routes';
 import { openApiOptions } from './openapi.config';
 
+import { checkRedisReadiness, getRedisStatus } from './lib/redis';
+
 export { openApiComponentSchemas, openApiOptions } from './openapi.config';
 
 export const buildApp = async () => {
@@ -71,6 +73,15 @@ export const buildApp = async () => {
 
   app.get('/health', async () => {
     return { status: 'ok' };
+  });
+
+  app.get('/health/ready', async (request, reply) => {
+    const redisHealth = await checkRedisReadiness();
+    const isReady = redisHealth.isReady;
+    return reply.status(isReady ? 200 : 503).send({
+      status: isReady ? 'ready' : 'degraded',
+      redis: redisHealth,
+    });
   });
 
   app.register(authRoutes);

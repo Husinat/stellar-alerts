@@ -22,6 +22,7 @@ model User {
   dexSwapWatches        DexSwapWatch[]
   deliveryAttempts NotificationDeliveryAttempt[]
   deadLetters        DeadLetter[]
+  mfaRecoveryCodes   MfaRecoveryCode[]
 }
 
 model Wallet {
@@ -466,4 +467,21 @@ model DeadLetterAudit {
 
   @@index([deadLetterId])
   @@index([createdAt])
+}
+
+// ── MFA Recovery Codes (#317) ────────────────────────────────────────────────
+//
+// One-time hashed recovery codes for safe account recovery if an MFA device
+// is lost. Plaintext codes are only displayed upon generation/regeneration.
+model MfaRecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  used      Boolean   @default(false)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([codeHash])
 }

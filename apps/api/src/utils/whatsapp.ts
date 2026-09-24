@@ -77,10 +77,14 @@ export function buildWhatsAppCloudPayload(
   };
 }
 
+import { env } from '../config/env';
+import { fetchWithTimeout } from '../lib/external-request';
+
 export async function dispatchWhatsAppAlert(
   phoneNumber: string,
   data: AlertJobData,
-  language: string = 'EN'
+  language: string = 'EN',
+  options: { timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<boolean> {
   const whatsappApiUrl =
     process.env.WHATSAPP_API_URL ||
@@ -88,17 +92,23 @@ export async function dispatchWhatsAppAlert(
   const whatsappToken = process.env.WHATSAPP_API_TOKEN || 'mock_whatsapp_token';
 
   const payload = buildWhatsAppCloudPayload(phoneNumber, data, language);
+  const timeoutMs = options.timeoutMs ?? env.NOTIFICATION_PROVIDER_TIMEOUT_MS;
 
   try {
-    const res = await fetch(whatsappApiUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${whatsappToken}`,
-        'Content-Type': 'application/json',
+    const res = await fetchWithTimeout(
+      whatsappApiUrl,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${whatsappToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10000),
-    });
+      timeoutMs,
+      options.signal,
+      'WhatsApp',
+    );
 
     if (!res.ok) {
       const errorText = await res.text();

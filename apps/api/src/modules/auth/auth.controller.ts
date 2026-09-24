@@ -214,7 +214,7 @@ export class AuthController {
   }
 
   /**
-   * Enable MFA - Verify first TOTP token
+   * Enable MFA - Verify first TOTP token and generate recovery codes
    */
   async enableMFA(request: FastifyRequest, reply: FastifyReply) {
     if (!request.user) {
@@ -227,10 +227,11 @@ export class AuthController {
     }
 
     try {
-      await mfaService.enableMFA(request.user.id, token);
+      const result = await mfaService.enableMFA(request.user.id, token);
       return reply.send({
         success: true,
         message: 'MFA enabled successfully',
+        recoveryCodes: result.recoveryCodes,
       });
     } catch (error: any) {
       return reply.status(400).send({ error: 'Failed to enable MFA', message: error.message });
@@ -271,12 +272,89 @@ export class AuthController {
 
     try {
       const enabled = await mfaService.isMFAEnabled(request.user.id);
+      const codeStatus = enabled
+        ? await mfaService.getRecoveryCodeStatus(request.user.id)
+        : { total: 0, remaining: 0 };
+
       return reply.send({
         success: true,
         mfaEnabled: enabled,
+        recoveryCodesRemaining: codeStatus.remaining,
+        recoveryCodesTotal: codeStatus.total,
       });
     } catch (error: any) {
       return reply.status(500).send({ error: 'Failed to check MFA status', message: error.message });
+    }
+  }
+
+  /**
+   * Generate/Regenerate one-time recovery codes (#317)
+   */
+  async generateRecoveryCodes(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    try {
+      const codes = await mfaService.generateRecoveryCodes(request.user.id);
+      return reply.send({
+        success: true,
+        recoveryCodes: codes,
+        message: 'New recovery codes generated. Store them securely; they will not be shown again.',
+      });
+    } catch (error: any) {
+      return reply.status(400).send({ error: 'Failed to generate recovery codes', message: error.message });
+    }
+  }
+
+  /**
+   * Get remaining recovery codes count (#317)
+   */
+  async getRecoveryCodeStatus(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    try {
+      const status = await mfaService.getRecoveryCodeStatus(request.user.id);
+      return reply.send({
+        success: true,
+        ...status,
+      });
+    } catch (error: any) {
+      return reply.status(500).send({ error: 'Failed to get recovery code status', message: error.message });
+    }
+  }
+
+  /**
+   * Recover account with a one-time recovery code when device is lost (#317)
+   */
+  async recoverAccount(request: FastifyRequest, reply: FastifyReply) {
+    const { email, recoveryCode } = (request.body as any) || {};
+
+    if (!email || typeof email !== 'string') {
+      return reply.status(400).send({ error: 'Missing or invalid email' });
+    }
+    if (!recoveryCode || typeof recoveryCode !== 'string') {
+      return reply.status(400).send({ error: 'Missing or invalid recovery code' });
+    }
+
+    try {
+      const result = await mfaService.recoverAccountWithCode(
+        email,
+        recoveryCode,
+        request.ip,
+      );
+      return reply.send({
+        success: true,
+        ...result,
+      });
+    } catch (error: any) {
+      const isRateLimit = error.message.includes('Too many recovery attempts');
+      return reply.status(isRateLimit ? 429 : 400).send({
+        error: isRateLimit ? 'Too Many Requests' : 'Recovery Failed',
+        message: error.message,
+      });
     }
   }
 }
