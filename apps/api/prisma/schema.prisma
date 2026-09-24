@@ -20,6 +20,8 @@ model User {
   multisigSignerWatches MultisigSignerWatcher[]
   anchorWatches         AnchorTransactionWatch[]
   dexSwapWatches        DexSwapWatch[]
+  deliveryAttempts NotificationDeliveryAttempt[]
+  deadLetters        DeadLetter[]
 }
 
 model Wallet {
@@ -40,6 +42,14 @@ model IngestionCursor {
   pagingToken  String
   lastSyncedAt DateTime @default(now()) @updatedAt
   createdAt    DateTime @default(now())
+
+  // Operator-visible ingestion health (see lib/cursor-recovery.ts).
+  status               String    @default("active") // 'active' | 'gap_detected'
+  consecutiveFailures  Int       @default(0)
+  lastError            String?
+  lastSuccessAt        DateTime?
+  gapDetectedAt        DateTime?
+  lastGapLedgerDelta    Int?
 }
 
 model Payment {
@@ -54,6 +64,8 @@ model Payment {
   memo        String?
   receivedAt  DateTime
   createdAt   DateTime @default(now())
+  deliveryAttempts NotificationDeliveryAttempt[]
+  deadLetters       DeadLetter[]
 
   @@index([txHash])
   @@index([receivedAt])
@@ -385,5 +397,87 @@ model SecurityAuditLog {
 
   @@index([eventType])
   @@index([txHash])
+  @@index([createdAt])
+}
+
+// ── Delivery idempotency (#272) ──────────────────────────────────────────────
+//
+// One row is written for every attempted delivery of a notification to a
+// single channel/destination. The `deliveryKey` is a stable hash of
+// `paymentId:channel:destination`, so the same logical delivery (including a
+// BullMQ retry across worker restarts, or a duplicate enqueued concurrently)
+// always addresses the same key. Status transitions:
+//   pending   → accepted, not yet dispatched to the provider
+//   delivered → provider acknowledged the request
+//   failed    → provider request errored (retryable)
+//   skipped   → suppressed by a concurrent duplicate or an idempotency hit
+//
+// Idempotency rule: a delivery is NEVER dispatched twice while an earlier
+// attempt for the same `deliveryKey` is in `delivered` state.
+model NotificationDeliveryAttempt {
+  id                String   @id @default(cuid())
+  deliveryKey       String
+  paymentId         String?
+  payment           Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  channel           String
+  destination       String?
+  providerRequestId String?
+  status            String   @default("pending") // pending | delivered | failed | skipped | suppressed
+  attempt           Int      @default(1)
+  error             String?
+  userId            String?
+  user              User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([deliveryKey])
+  @@index([channel])
+  @@index([status])
+  @@index([paymentId])
+  @@index([createdAt])
+}
+
+// ── Dead-letter inspection & replay (#273) ───────────────────────────────────
+//
+// A terminal notification failure is persisted here (channel, destination,
+// the alert payload, and the provider error) so operators can inspect the DLQ
+// through an authenticated API/UI, retry a failed delivery (idempotently), or
+// suppress a payload — every action leaving an audit trail in
+// `DeadLetterAudit`. `status`: pending | retried | suppressed.
+model DeadLetter {
+  id           String   @id @default(cuid())
+  deliveryKey  String?
+  paymentId    String?
+  payment      Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  channel      String
+  destination  String?
+  payload      Json?
+  error        String
+  status       String   @default("pending") // pending | retried | suppressed
+  retryCount   Int      @default(0)
+  failedAt     DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  auditLogs    DeadLetterAudit[]
+
+  @@index([deliveryKey])
+  @@index([channel])
+  @@index([status])
+  @@index([userId])
+  @@index([failedAt])
+}
+
+model DeadLetterAudit {
+  id           String    @id @default(cuid())
+  deadLetterId String
+  deadLetter   DeadLetter @relation(fields: [deadLetterId], references: [id], onDelete: Cascade)
+  actorUserId  String?
+  action       String    // retry | suppress
+  note         String?
+  createdAt    DateTime  @default(now())
+
+  @@index([deadLetterId])
   @@index([createdAt])
 }

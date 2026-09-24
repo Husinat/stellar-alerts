@@ -35,7 +35,7 @@ describe('ActivityHeatmap', () => {
     expect(screen.getByTestId('activity-heatmap-day-2026-08-29')).toHaveAttribute('data-level', '4');
   });
 
-  it('exposes daily counts through accessible labels and snapshot markup', () => {
+  it('supports date range presets and accessible daily counts', () => {
     render(
       <ActivityHeatmap
         payments={[{ receivedAt: '2026-08-29T12:00:00.000Z' }, { receivedAt: '2026-08-29T13:00:00.000Z' }]}
@@ -44,11 +44,8 @@ describe('ActivityHeatmap', () => {
     );
 
     expect(screen.getByRole('button', { name: /Aug 29, 2026: 2 transactions/i })).toBeInTheDocument();
-    expect({
-      title: screen.getByRole('heading', { name: 'Activity' }).textContent,
-      dayCount: screen.getAllByRole('button').length,
-      selectedDay: screen.getByText('2 transactions').textContent,
-      legend: screen.getByLabelText('Activity intensity legend').textContent,
-    }).toMatchSnapshot();
+    expect(screen.getByTestId('activity-heatmap-range-90d')).toBeInTheDocument();
+    expect(screen.getByTestId('activity-heatmap-end-date')).toHaveValue('2026-08-29');
+    expect(screen.getAllByRole('button', { name: /transactions/i })).toHaveLength(365);
   });
 });

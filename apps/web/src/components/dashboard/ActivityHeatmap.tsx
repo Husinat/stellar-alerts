@@ -19,6 +19,12 @@ interface ActivityHeatmapProps {
 }
 
 const DEFAULT_DAYS = 365;
+
+const DATE_RANGE_PRESETS = [
+  { id: '90d', label: '90 days', days: 90 },
+  { id: '180d', label: '6 months', days: 180 },
+  { id: '365d', label: '1 year', days: 365 },
+] as const;
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const CELL_SIZE = 12;
 const CELL_GAP = 3;
@@ -85,12 +91,20 @@ function getLevel(count: number, maximum: number): number {
 export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({
   payments = [],
   referenceDate,
-  days = DEFAULT_DAYS,
+  days: daysProp = DEFAULT_DAYS,
 }) => {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [rangeDays, setRangeDays] = useState(daysProp);
+  const [rangeEnd, setRangeEnd] = useState(() => toDateKey(referenceDate ?? new Date()));
+
+  const effectiveReferenceDate = useMemo(
+    () => new Date(`${rangeEnd}T12:00:00.000Z`),
+    [rangeEnd],
+  );
+
   const data = useMemo(
-    () => buildActivityHeatmapData(payments, referenceDate, days),
-    [days, payments, referenceDate]
+    () => buildActivityHeatmapData(payments, effectiveReferenceDate, rangeDays),
+    [effectiveReferenceDate, payments, rangeDays]
   );
   const maximum = Math.max(...data.map((day) => day.count), 0);
   const selectedDay = data.find((day) => day.date === selectedDate) ?? data[data.length - 1];
@@ -109,7 +123,37 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({
           <h2 id="activity-heatmap-title" className="text-xl font-bold text-white flex items-center gap-2">
             <span aria-hidden="true">▦</span> Activity
           </h2>
-          <p className="text-sm text-slate-400 mt-1">Daily transaction activity over the past year.</p>
+          <p className="text-sm text-slate-400 mt-1">Daily transaction activity with adjustable date range.</p>
+        </div>
+        <div className="flex flex-col gap-2 sm:items-end">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Activity date range presets">
+            {DATE_RANGE_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                data-testid={`activity-heatmap-range-${preset.id}`}
+                aria-pressed={rangeDays === preset.days}
+                onClick={() => setRangeDays(preset.days)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  rangeDays === preset.days
+                    ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200'
+                    : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 text-xs text-slate-400">
+            End date
+            <input
+              type="date"
+              data-testid="activity-heatmap-end-date"
+              value={rangeEnd}
+              onChange={(event) => setRangeEnd(event.target.value)}
+              className="rounded-lg bg-slate-950 border border-slate-800 px-2 py-1 text-slate-200"
+            />
+          </label>
         </div>
         <div className="rounded-xl bg-slate-950/50 border border-slate-800/80 px-4 py-3 min-w-36">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected day</div>
@@ -162,7 +206,7 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({
                       data-level={level}
                       onMouseEnter={() => setSelectedDate(day.date)}
                       onFocus={() => setSelectedDate(day.date)}
-                      className={`w-3 h-3 rounded-[3px] border transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-emerald-300/80 ${
+                      className={`relative group w-3 h-3 rounded-[3px] border transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-emerald-300/80 ${
                         level === 0 ? 'bg-slate-800/80 border-slate-700' :
                         level === 1 ? 'bg-emerald-950 border-emerald-900' :
                         level === 2 ? 'bg-emerald-700 border-emerald-600' :
@@ -171,7 +215,7 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({
                       }`}
                     >
                       <span className="sr-only">{formatDate(day.date)}: {day.count} transactions</span>
-                      <span role="tooltip" className="pointer-events-none absolute z-10 hidden whitespace-nowrap rounded-md bg-slate-950 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
+                      <span role="tooltip" className="pointer-events-none absolute left-1/2 bottom-full mb-1 -translate-x-1/2 z-10 hidden whitespace-nowrap rounded-md bg-slate-950 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block group-focus-within:block">
                         {formatDate(day.date)}: {day.count} {day.count === 1 ? 'transaction' : 'transactions'}
                       </span>
                     </button>

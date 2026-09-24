@@ -89,3 +89,26 @@ export const cryptoVault = new CryptoVault(
   process.env.MASTER_ENCRYPTION_KEY_VERSION ?? '1',
   oldKeys
 );
+
+export interface WebhookSecretParts {
+  secretCiphertext: string;
+  secretIv: string;
+  secretAuthTag: string;
+  keyVersion: number;
+}
+
+/** Combines split DB secret fields into the `version:iv:authTag:ciphertext` format CryptoVault expects. */
+export function joinEncryptedSecretParts(parts: WebhookSecretParts): string {
+  return [String(parts.keyVersion), parts.secretIv, parts.secretAuthTag, parts.secretCiphertext].join(SEPARATOR);
+}
+
+/** Splits a CryptoVault-encrypted string into the DB's separate secret fields. */
+export function splitEncryptedSecret(encrypted: string): WebhookSecretParts {
+  const [version, iv, authTag, ciphertext] = encrypted.split(SEPARATOR);
+  return { secretCiphertext: ciphertext, secretIv: iv, secretAuthTag: authTag, keyVersion: Number(version) };
+}
+
+/** Decrypts a webhook secret from its combined encrypted string form. */
+export function decryptSecret(encrypted: string): string {
+  return cryptoVault.decrypt(encrypted);
+}

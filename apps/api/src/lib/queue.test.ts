@@ -7,6 +7,36 @@ const { MockQueueAdd, MockQueueEventsOn, MockWorker } = vi.hoisted(() => ({
   MockWorker: vi.fn(function() {}),
 }));
 
+const mockRedisStore = new Map<string, string>();
+
+vi.mock('ioredis', () => {
+  const RedisMock = vi.fn().mockImplementation(() => ({
+    set: vi.fn(async (key: string, value: string, ...rest: any[]) => {
+      const hasNx = rest.some((arg) => typeof arg === 'string' && arg.toUpperCase() === 'NX');
+      if (hasNx && mockRedisStore.has(key)) {
+        return null;
+      }
+      mockRedisStore.set(key, value);
+      return 'OK';
+    }),
+    get: vi.fn(async (key: string) => mockRedisStore.get(key) ?? null),
+    eval: vi.fn(async (_script: string, _numkeys: number, key: string, value: string) => {
+      if (mockRedisStore.get(key) === value) {
+        mockRedisStore.delete(key);
+        return 1;
+      }
+      return 0;
+    }),
+    on: vi.fn(),
+  }));
+  return { default: RedisMock };
+});
+
+vi.mock('./redis', async () => {
+  const { default: Redis } = await import('ioredis');
+  return { redis: new Redis() };
+});
+
 // We mock bullmq before importing queue
 vi.mock('bullmq', () => {
   return {
@@ -35,6 +65,16 @@ vi.mock('./prisma', () => {
       whatsAppDeliveryLog: {
         findFirst: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue({}),
+      },
+      notificationDeliveryAttempt: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        count: vi.fn().mockResolvedValue(0),
+        create: vi.fn().mockResolvedValue({ id: 'attempt-1' }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      deadLetter: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: 'dl-1' }),
       },
     },
   };
@@ -87,6 +127,7 @@ import { dispatchWhatsAppAlert } from '../utils/whatsapp';
 describe('Queue DLQ routing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRedisStore.clear();
   });
 
   it('routes to DLQ when job fails after max attempts', async () => {
@@ -154,6 +195,7 @@ describe('Redis Sentinel Connection Configuration', () => {
 describe('Telegram Dispatcher Worker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRedisStore.clear();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
   });
 

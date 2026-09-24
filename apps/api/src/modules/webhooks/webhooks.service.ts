@@ -2,6 +2,7 @@ import crypto from 'crypto';
 
 import { prisma } from '../../lib/prisma';
 import { KeyRotationManager } from '../../utils/key-rotation-manager';
+import { cryptoVault, joinEncryptedSecretParts, splitEncryptedSecret } from '../../utils/crypto-vault';
 
 export interface WebhookTestResult {
   success: boolean;
@@ -16,7 +17,7 @@ export interface WebhookHealthScorecard {
   averageLatencyMs: number;
   status: WebhookHealthStatus;
   totalDeliveries7d: number;
-  successfudDeliveries7d: number;
+  successfulDeliveries7d: number;
   failedDeliveries7d: number;
 }
 
@@ -67,12 +68,16 @@ export class WebhooksService {
 
     const secret = crypto.randomBytes(32).toString('hex');
     const encryptedSecret = cryptoVault.encrypt(secret);
+    const { secretCiphertext, secretIv, secretAuthTag, keyVersion } = splitEncryptedSecret(encryptedSecret);
 
     const webhook = await prisma.webhook.create({
       data: {
         userId,
         url,
-        secret: encryptedSecret,
+        secretCiphertext,
+        secretIv,
+        secretAuthTag,
+        keyVersion,
         payloadTemplate,
       },
       select: {
@@ -88,6 +93,7 @@ export class WebhooksService {
 
     return {
       ...webhook,
+      secret: encryptedSecret,
       healthPercentage: 100.0,
       averageLatencyMs: 0,
       status: 'HEALTHY' as WebhookHealthStatus,
@@ -159,7 +165,7 @@ export class WebhooksService {
       throw new Error('Webhook not found');
     }
 
-    const secret = cryptoVault.decrypt(webhook.secret);
+    const secret = cryptoVault.decrypt(joinEncryptedSecretParts(webhook));
 
     const payload = JSON.stringify({
       event: 'webhook.ping',
@@ -171,7 +177,7 @@ export class WebhooksService {
     });
 
     if (!this.keyRotationManager.getKeyState(webhook.id)) {
-      this.keyRotationManager.setKeyState(webhook.id, { activeSecret: webhook.secret });
+      this.keyRotationManager.setKeyState(webhook.id, { activeSecret: secret });
     }
     const signatures = this.keyRotationManager.sign(payload, webhook.id);
 
