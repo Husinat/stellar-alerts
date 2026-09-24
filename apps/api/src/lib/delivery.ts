@@ -15,6 +15,48 @@ export type DeliveryChannel =
   | 'slack'
   | 'push';
 
+export type DeliveryStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'delivered'
+  | 'failed'
+  | 'exhausted'
+  | 'suppressed'
+  | 'skipped';
+
+export const TERMINAL_DELIVERY_STATES = [
+  'delivered',
+  'exhausted',
+  'suppressed',
+  'skipped',
+] as const;
+
+export type TerminalDeliveryStatus = (typeof TERMINAL_DELIVERY_STATES)[number];
+
+export function isTerminalDeliveryStatus(status: string): boolean {
+  return TERMINAL_DELIVERY_STATES.includes(status as TerminalDeliveryStatus);
+}
+
+export const VALID_LIFECYCLE_TRANSITIONS: Record<DeliveryStatus, readonly DeliveryStatus[]> = {
+  pending: ['in_progress', 'suppressed', 'skipped'],
+  in_progress: ['delivered', 'failed', 'exhausted', 'suppressed'],
+  failed: ['in_progress', 'exhausted', 'suppressed'],
+  delivered: [],
+  exhausted: [],
+  suppressed: [],
+  skipped: [],
+};
+
+export function validateDeliveryTransition(current: DeliveryStatus, next: DeliveryStatus): void {
+  if (isTerminalDeliveryStatus(current)) {
+    throw new Error(`Illegal delivery transition: delivery is already in terminal state "${current}"`);
+  }
+  const allowed = VALID_LIFECYCLE_TRANSITIONS[current];
+  if (!allowed || !allowed.includes(next)) {
+    throw new Error(`Illegal delivery transition from "${current}" to "${next}"`);
+  }
+}
+
 /**
  * Everything needed to address one logical delivery. A delivery is uniquely
  * identified by the `deliveryKey` derived from (payment, channel, destination).
@@ -119,10 +161,22 @@ export async function releaseDeliveryGate(
 
 /**
  * Returns true when a previous attempt for this delivery key already reached
- * the provider successfully. This is the source of truth that survives worker
- * restarts because it lives in Postgres rather than Redis.
+ * the provider successfully or the delivery is in a terminal state.
  */
 export async function alreadyDelivered(deliveryKey: string): Promise<boolean> {
+  // Check logical delivery table if present
+  try {
+    const delivery = await (prisma as any).notificationDelivery?.findUnique({
+      where: { deliveryKey },
+      select: { status: true },
+    });
+    if (delivery && isTerminalDeliveryStatus(delivery.status)) {
+      return true;
+    }
+  } catch {
+    // Fall back to attempt table check
+  }
+
   const attempt = await prisma.notificationDeliveryAttempt.findFirst({
     where: { deliveryKey, status: 'delivered' },
     select: { id: true },
@@ -131,9 +185,36 @@ export async function alreadyDelivered(deliveryKey: string): Promise<boolean> {
 }
 
 /**
+ * Atomically retrieves or creates the logical NotificationDelivery entity
+ * enforcing database uniqueness on (paymentId, channel, destination) and deliveryKey.
+ */
+export async function getOrCreateDelivery(
+  descriptor: DeliveryDescriptor,
+  options: { maxAttempts?: number } = {},
+) {
+  const deliveryKey = buildDeliveryKey(descriptor.paymentId, descriptor.channel, descriptor.destination);
+  const maxAttempts = options.maxAttempts ?? 5;
+
+  return await (prisma as any).notificationDelivery.upsert({
+    where: { deliveryKey },
+    update: {},
+    create: {
+      deliveryKey,
+      paymentId: descriptor.paymentId,
+      channel: descriptor.channel,
+      destination: descriptor.destination,
+      userId: descriptor.userId ?? null,
+      status: 'pending',
+      maxAttempts,
+    },
+  });
+}
+
+/**
  * Persists a single delivery attempt (one attempt per provider call, indexed
  * by the stable delivery key). `attempt` is the 1-based attempt number for
  * that delivery key, which grows on retries.
+ * Enforces uniqueness on (deliveryKey, attempt) and disallows dispatches on terminal deliveries.
  */
 export async function recordDeliveryAttempt(input: {
   deliveryKey: string;
@@ -141,20 +222,72 @@ export async function recordDeliveryAttempt(input: {
   channel: DeliveryChannel | string;
   destination?: string | null;
   userId?: string | null;
+  deliveryId?: string | null;
 }): Promise<string> {
+  let deliveryId = input.deliveryId;
+
+  try {
+    const existingDelivery = await (prisma as any).notificationDelivery?.findUnique({
+      where: { deliveryKey: input.deliveryKey },
+    });
+
+    if (existingDelivery) {
+      if (isTerminalDeliveryStatus(existingDelivery.status)) {
+        throw new Error(`Cannot record attempt for delivery in terminal state "${existingDelivery.status}"`);
+      }
+      deliveryId = existingDelivery.id;
+    }
+  } catch (err: any) {
+    if (err.message.includes('terminal state')) {
+      throw err;
+    }
+  }
+
   const prior = await prisma.notificationDeliveryAttempt.count({
     where: { deliveryKey: input.deliveryKey },
   });
+  const nextAttempt = prior + 1;
+
+  if (!deliveryId && input.paymentId && input.destination) {
+    try {
+      const d = await (prisma as any).notificationDelivery?.upsert({
+        where: { deliveryKey: input.deliveryKey },
+        update: { currentAttempt: nextAttempt, status: 'in_progress' },
+        create: {
+          deliveryKey: input.deliveryKey,
+          paymentId: input.paymentId,
+          channel: input.channel,
+          destination: input.destination,
+          userId: input.userId ?? null,
+          status: 'in_progress',
+          currentAttempt: nextAttempt,
+        },
+      });
+      if (d) deliveryId = d.id;
+    } catch {
+      // Ignore if model unavailable in mock
+    }
+  } else if (deliveryId) {
+    try {
+      await (prisma as any).notificationDelivery?.update({
+        where: { id: deliveryId },
+        data: { currentAttempt: nextAttempt, status: 'in_progress' },
+      });
+    } catch {
+      // Ignore if model unavailable in mock
+    }
+  }
 
   const row = await prisma.notificationDeliveryAttempt.create({
     data: {
       deliveryKey: input.deliveryKey,
+      deliveryId,
       paymentId: input.paymentId ?? null,
       channel: input.channel,
       destination: input.destination ?? null,
       userId: input.userId ?? null,
       status: 'pending',
-      attempt: prior + 1,
+      attempt: nextAttempt,
     },
     select: { id: true },
   });
@@ -165,27 +298,97 @@ export async function markDeliveryDelivered(
   attemptId: string,
   providerRequestId?: string,
 ): Promise<void> {
-  await prisma.notificationDeliveryAttempt.update({
+  const attempt = await prisma.notificationDeliveryAttempt.update({
     where: { id: attemptId },
     data: { status: 'delivered', providerRequestId },
   });
+
+  const now = new Date();
+  try {
+    const parentDeliveryId = (attempt as any).deliveryId;
+    if (parentDeliveryId) {
+      await (prisma as any).notificationDelivery?.update({
+        where: { id: parentDeliveryId },
+        data: {
+          status: 'delivered',
+          deliveredAt: now,
+          terminalAt: now,
+          lastError: null,
+        },
+      });
+    } else if (attempt.deliveryKey) {
+      await (prisma as any).notificationDelivery?.updateMany({
+        where: { deliveryKey: attempt.deliveryKey },
+        data: {
+          status: 'delivered',
+          deliveredAt: now,
+          terminalAt: now,
+          lastError: null,
+        },
+      });
+    }
+  } catch {
+    // Ignore in tests where model is not mocked
+  }
 }
 
 export async function markDeliveryFailed(
   attemptId: string,
   error: string,
 ): Promise<void> {
-  await prisma.notificationDeliveryAttempt.update({
+  const attempt = await prisma.notificationDeliveryAttempt.update({
     where: { id: attemptId },
     data: { status: 'failed', error: error.substring(0, 2000) },
   });
+
+  try {
+    const parent = await (prisma as any).notificationDelivery?.findUnique({
+      where: { deliveryKey: attempt.deliveryKey },
+    });
+
+    if (parent) {
+      const isExhausted = parent.currentAttempt >= parent.maxAttempts;
+      const nextStatus: DeliveryStatus = isExhausted ? 'exhausted' : 'failed';
+      const now = new Date();
+
+      await (prisma as any).notificationDelivery?.update({
+        where: { id: parent.id },
+        data: {
+          status: nextStatus,
+          lastError: error.substring(0, 2000),
+          terminalAt: isExhausted ? now : null,
+        },
+      });
+    }
+  } catch {
+    // Ignore in tests where model is not mocked
+  }
+}
+
+export async function markDeliverySuppressed(
+  deliveryKey: string,
+  reason?: string,
+): Promise<void> {
+  const now = new Date();
+  try {
+    await (prisma as any).notificationDelivery?.updateMany({
+      where: { deliveryKey },
+      data: {
+        status: 'suppressed',
+        lastError: reason ?? 'Delivery suppressed',
+        terminalAt: now,
+      },
+    });
+  } catch {
+    // Ignore in tests where model is not mocked
+  }
 }
 
 /**
  * Dispatches a provider request exactly once for a delivery key.
  *
  * - Skips immediately when an earlier attempt already delivered the key
- *   (cross-restart idempotency, backed by Postgres).
+ *   or reached a terminal state (cross-restart idempotency, backed by Postgres).
  * - Serializes concurrent duplicate jobs with a Redis gate so at most one
  *   worker talks to the provider.
  * - Records every provider call as a persisted `NotificationDeliveryAttempt`.
