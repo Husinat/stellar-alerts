@@ -407,6 +407,36 @@ export interface PrismaClient<
     * ```
     */
   get securityAuditLog(): Prisma.SecurityAuditLogDelegate<ExtArgs, { omit: OmitOpts }>;
+
+  /**
+   * `prisma.notificationDeliveryAttempt`: Exposes CRUD operations for the **NotificationDeliveryAttempt** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more NotificationDeliveryAttempts
+    * const notificationDeliveryAttempts = await prisma.notificationDeliveryAttempt.findMany()
+    * ```
+    */
+  get notificationDeliveryAttempt(): Prisma.NotificationDeliveryAttemptDelegate<ExtArgs, { omit: OmitOpts }>;
+
+  /**
+   * `prisma.deadLetter`: Exposes CRUD operations for the **DeadLetter** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more DeadLetters
+    * const deadLetters = await prisma.deadLetter.findMany()
+    * ```
+    */
+  get deadLetter(): Prisma.DeadLetterDelegate<ExtArgs, { omit: OmitOpts }>;
+
+  /**
+   * `prisma.deadLetterAudit`: Exposes CRUD operations for the **DeadLetterAudit** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more DeadLetterAudits
+    * const deadLetterAudits = await prisma.deadLetterAudit.findMany()
+    * ```
+    */
+  get deadLetterAudit(): Prisma.DeadLetterAuditDelegate<ExtArgs, { omit: OmitOpts }>;
 }
 
 export function getPrismaClientClass(): PrismaClientConstructor {

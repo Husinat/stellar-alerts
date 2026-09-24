@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { requestLinkSchema, verifyLinkSchema, telegramInitDataSchema } from './auth.schema';
+import { requestLinkSchema, verifyLinkSchema, telegramInitDataSchema, didChallengeSchema, didVerifySchema } from './auth.schema';
 import { authService } from './auth.service';
 import { TelegramInitDataError } from '../../utils/telegram';
 import { createPublicKey, verify as cryptoVerify } from 'crypto';
@@ -93,13 +93,13 @@ export class AuthController {
   }
 
   async requestDIDChallenge(request: FastifyRequest, reply: FastifyReply) {
-    const { did } = (request.body as any) || {};
-    if (!did || typeof did !== 'string') {
-      return reply.status(400).send({ error: 'Invalid DID parameter' });
+    const parsed = didChallengeSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid DID parameter', details: parsed.error.format() });
     }
 
     try {
-      const challengeObj = authService.requestDIDChallenge(did);
+      const challengeObj = await authService.requestDIDChallenge(parsed.data.did);
       return reply.send({ success: true, ...challengeObj });
     } catch (error: any) {
       return reply.status(400).send({ error: error.message });
@@ -107,13 +107,13 @@ export class AuthController {
   }
 
   async verifyDIDAuth(request: FastifyRequest, reply: FastifyReply) {
-    const { did, challenge, signature } = (request.body as any) || {};
-    if (!did || !challenge || !signature) {
-      return reply.status(400).send({ error: 'Missing did, challenge, or signature parameters' });
+    const parsed = didVerifySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Missing or invalid did, challenge, or signature parameters', details: parsed.error.format() });
     }
 
     try {
-      const result = await authService.verifyDIDAuth(did, challenge, signature);
+      const result = await authService.verifyDIDAuth(parsed.data.did, parsed.data.challenge, parsed.data.signature);
       return reply.send({ success: true, ...result });
     } catch (error: any) {
       return reply.status(401).send({ error: 'DID Authentication failed', message: error.message });

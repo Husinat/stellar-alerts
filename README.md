@@ -24,7 +24,10 @@ Stellar Alerts monitors registered Stellar public wallets in real time for incom
 - 🩹 **Hardened Cursor Recovery**: Detects ingestion ledger gaps and Horizon provider outages, recovers with a bounded backfill instead of an unbounded replay, and exposes per-wallet ingestion health via `GET /wallets/:id/ingestion-status`.
 - 🛡️ **HMAC SHA256 Webhook Signer**: Generates cryptographically verifiable `X-Stellar-Alerts-Signature` headers for webhook payloads.
 - 🪄 **1-Click Passwordless Auth**: Secure Magic Link email authentication (`/verify?token=...`) with zero password overhead.
-- 📊 **Modular React Dashboard**: Monitored wallets, summary statistics, and real-time payment history powered by Next.js and Tailwind CSS.
+- 🦋 **Wallet (DID) Sign-In**: Sign in with your Stellar Freighter wallet via `did:pkh:stellar` challenges — single-use, expiring, and fully non-custodial (see `/auth/did/*`).
+- 🔁 **Idempotent Delivery**: Webhook/Telegram/Email dispatches deduplicate via `notificationDeliveryAttempt`, preventing duplicate alerts on retries.
+- 🗄️ **Dead-Letter Queue & Inspector**: Terminal delivery failures are persisted (`DeadLetter`), audited, and can be replayed idempotently or suppressed from the API and web UI (`/dead-letters`).
+- 📊 **Modular React Dashboard**: Monitored wallets, summary statistics, and real-time payment history powered by Next.js and Tailwind CSS, organized into feature routes (`/dashboard`, `/inspectors`, `/settings`, `/onboarding`, `/docs`).
 - 🧪 **Automated Vitest Test Suite**: Unit testing framework with 100% passing test coverage (`npm run test:api`).
 
 ---
