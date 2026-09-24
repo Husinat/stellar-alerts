@@ -7,7 +7,7 @@ import { adaptiveWebhookRateLimiter, waitForAdaptiveBackoff } from '../utils/rat
 import { generateWebhookSignature } from '../utils/webhook-signer';
 import { prisma } from './prisma';
 import { createLogger } from './logger';
-import { dispatchWhatsAppAlert, WhatsAppInvalidNumberError } from '../utils/whatsapp';
+import { publishDeliveryEvent } from './realtime';
 import { deliverWithIdempotency } from './delivery';
 import { persistDeadLetter } from './dead-letter';
 
@@ -227,13 +227,14 @@ export async function dispatchWebhookAndLog(webhookId: string, payload: any, ret
 
     const responseBody = await response.text();
 
-    await prisma.webhookLog.create({
+    const deliveryLog = await prisma.webhookLog.create({
       data: {
         webhookId,
         statusCode: response.status,
         responseBody: responseBody.substring(0, 5000),
       },
     });
+    await publishDeliveryEvent(webhook.userId, deliveryLog);
     adaptiveWebhookRateLimiter.clear(webhook.url);
 
     // Reset circuit breaker to closed on success
@@ -301,12 +302,20 @@ export async function dispatchWebhookAndLog(webhookId: string, payload: any, ret
       await updateCircuitBreakerState(webhookId, "closed", failureCount);
     }
 
-    await prisma.webhookLog.create({
+    const failureLog = await prisma.webhookLog.create({
       data: {
         webhookId,
         error: error.message.substring(0, 1000),
       },
     });
+
+    const failedWebhook = await prisma.webhook.findUnique({
+      where: { id: webhookId },
+      select: { userId: true },
+    });
+    if (failedWebhook) {
+      await publishDeliveryEvent(failedWebhook.userId, failureLog);
+    }
 
     console.error(
       `[WebhookDispatch] Failed to dispatch webhook ${webhookId}: ${error.message}`,

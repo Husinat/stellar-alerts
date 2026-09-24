@@ -9,10 +9,14 @@ Data flows in one direction:
 ```
 Stellar Network (Horizon SSE + Soroban RPC) → Ingestion Worker → PostgreSQL → Fastify REST API → Next.js Web App
                                                     │
-                                                    └──> BullMQ (Redis) → Telegram / Email / Webhook Alerts
+                                                    ├──> BullMQ (Redis) → Telegram / Email / Webhook Alerts
+                                                    │                            │
+                                                    └──> Redis Pub/Sub ─────────>┴──> WebSocket Plugin → Next.js Web App
 ```
 
 The Next.js web application never communicates with Stellar directly. It consumes the typed Fastify REST API, utilizing shared DTO interfaces exported by `@stellar-alerts/shared`.
+
+Persisted payment and webhook-delivery events also reach the browser live: the watcher worker and the BullMQ webhook dispatcher (separate processes from the API server) publish each event to Redis (`apps/api/src/lib/realtime.ts`), and the API's WebSocket plugin (`apps/api/src/plugins/websocket.ts`) relays it over `/ws` to that event's owning user only. The browser authenticates the handshake with its session JWT as a `?token=` query param (native WebSocket can't set an Authorization header), and the server routes every event by the JWT-verified `userId` it captured at connect time — never by anything the client requests — so one user's socket can never receive another user's events. Each connection gets a small bounded outbound queue (`apps/api/src/lib/clientRegistry.ts`) that preserves delivery order and drops only the oldest entry if it overflows, and the browser client (`apps/web/src/lib/socket.ts`) reconnects automatically with exponential backoff.
 
 ---
 
