@@ -2,6 +2,8 @@ import { Queue, QueueEvents, Job, Worker } from 'bullmq';
 import { Resend } from 'resend';
 import { prisma } from './prisma';
 import { createLogger } from './logger';
+import { deliverWithIdempotency } from './delivery';
+import { persistDeadLetter } from './dead-letter';
 
 const queueLog = createLogger({ module: 'Queue' });
 
@@ -364,6 +366,15 @@ try {
         await dlqQueue.add("dispatch-alert-failed", job.data, {
           jobId: `dlq-${jobId}`,
         });
+        // Persist a dead-letter so operators can inspect/replay/suppress this
+        // terminal failure even after the BullMQ queue is cleaned up (#273).
+        void persistDeadLetter({
+          channel: "queue",
+          destination: jobId,
+          paymentId: job.data?.paymentId ?? null,
+          payload: job.data ?? null,
+          error: failedReason || "Alert delivery job reached max attempts",
+        });
         queueLog.warn({ jobId, failedReason }, 'Moved failed job to DLQ');
       }
     } catch (e: any) {
@@ -383,6 +394,13 @@ export async function failedJobHandler({ jobId, failedReason }: { jobId?: string
     if (job && job.attemptsMade >= (job.opts.attempts || 5)) {
       await dlqQueue.add("dispatch-alert-failed", job.data, {
         jobId: `dlq-${jobId}`,
+      });
+      await persistDeadLetter({
+        channel: "queue",
+        destination: jobId,
+        paymentId: (job.data as AlertJobData | undefined)?.paymentId ?? null,
+        payload: job.data ?? null,
+        error: failedReason || "Alert delivery job reached max attempts",
       });
       console.log(
         `[Queue] 📨 Moved failed job ${jobId} to DLQ. Reason: ${failedReason}`,
@@ -447,52 +465,92 @@ export async function processAlertDispatch(data: AlertJobData) {
     },
   };
 
-  // Dispatch to all user webhooks (non-blocking)
+  const userId = wallet?.user?.id ?? null;
+
+  const recordDeadLetter = (channel: string, destination: string | null, err: any) =>
+    persistDeadLetter({
+      paymentId: data.paymentId,
+      userId,
+      channel,
+      destination,
+      payload: webhookPayload,
+      error: err?.message ?? String(err),
+    });
+
+  // Dispatch to all user webhooks (non-blocking). Every webhook POST is
+  // wrapped in the delivery idempotency gate so concurrent duplicate jobs
+  // produce a single provider request and restarted jobs never re-send a
+  // delivery that already succeeded (#272).
   if (wallet?.user?.webhooks && wallet.user.webhooks.length > 0) {
     await Promise.all(
       wallet.user.webhooks.map((webhook) =>
-        dispatchWebhookAndLog(webhook.id, webhookPayload),
+        deliverWithIdempotency(
+          {
+            paymentId: data.paymentId,
+            channel: "webhook",
+            destination: webhook.id,
+            userId,
+          },
+          async () => {
+            await dispatchWebhookAndLog(webhook.id, webhookPayload);
+          },
+        ).catch((err: any) => {
+          console.warn(`[Worker] Webhook dispatch had errors: ${err.message}`);
+        }),
       ),
-    ).catch((err) => {
-      console.warn(`[Worker] Webhook dispatch had errors: ${err.message}`);
-    });
+    );
   }
 
   // Dispatch Telegram alert if configured
   if (wallet?.user?.notifyPrefs?.telegramEnabled && wallet.user.notifyPrefs.telegramChatId) {
-    try {
-      const chatId = wallet.user.notifyPrefs.telegramChatId;
-      const botToken = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
-      if (isPublicChannel(chatId)) {
-        await assertBotIsChannelAdmin(botToken, chatId);
-      }
-      const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: isPublicChannel(chatId) ? buildTelegramPaymentCard(data) : `Payment Receipt:\nAmount: ${data.amount} ${data.asset}\nFrom: ${data.fromAddress}`,
-          ...(isPublicChannel(chatId) ? { parse_mode: 'HTML' } : {}),
-        })
-      });
+    const chatId = wallet.user.notifyPrefs.telegramChatId;
+    await deliverWithIdempotency(
+      {
+        paymentId: data.paymentId,
+        channel: "telegram",
+        destination: chatId,
+        userId,
+      },
+      async () => {
+        const botToken = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
+        if (isPublicChannel(chatId)) {
+          await assertBotIsChannelAdmin(botToken, chatId);
+        }
+        const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: isPublicChannel(chatId) ? buildTelegramPaymentCard(data) : `Payment Receipt:\nAmount: ${data.amount} ${data.asset}\nFrom: ${data.fromAddress}`,
+            ...(isPublicChannel(chatId) ? { parse_mode: 'HTML' } : {}),
+          })
+        });
 
-      if (!response.ok) {
-        console.warn(`[Worker] Failed to send Telegram message for ${data.paymentId}`);
-      } else {
+        if (!response.ok) {
+          throw new Error(`Telegram API responded with ${response.status} for ${data.paymentId}`);
+        }
         console.log(`[Worker] Sent Telegram receipt for ${data.paymentId}`);
-      }
-    } catch (dbErr: any) {
-      console.warn(`[Worker] Failed to send Telegram notification for ${data.paymentId}: ${dbErr.message}`);
-    }
+      },
+    ).catch(async (err: any) => {
+      console.warn(`[Worker] Failed to send Telegram notification for ${data.paymentId}: ${err.message}`);
+      await recordDeadLetter('telegram', chatId, err);
+    });
   }
 
   // Send email alert
-  try {
-    const { data: resendData, error } = await resend.emails.send({
-      from: "Stellar Alerts <alerts@resend.dev>",
-      to: [data.fromAddress],
-      subject: `Payment Receipt: ${data.amount} ${data.asset}`,
-      html: `
+  await deliverWithIdempotency(
+    {
+      paymentId: data.paymentId,
+      channel: "email",
+      destination: data.fromAddress,
+      userId,
+    },
+    async () => {
+      const { data: resendData, error } = await resend.emails.send({
+        from: "Stellar Alerts <alerts@resend.dev>",
+        to: [data.fromAddress],
+        subject: `Payment Receipt: ${data.amount} ${data.asset}`,
+        html: `
       <h1>Payment Receipt</h1>
       <p><strong>Payment ID:</strong> ${data.paymentId}</p>
       <p><strong>Transaction Hash:</strong> ${data.txHash}</p>
@@ -500,18 +558,19 @@ export async function processAlertDispatch(data: AlertJobData) {
       <p><strong>From Address:</strong> ${data.fromAddress}</p>
       <p><strong>Received At:</strong> ${data.receivedAt}</p>
     `,
-    });
+      });
 
-    if (error) {
-      console.warn(`[Worker] Resend Email Notice: ${error.message}`);
-    } else {
+      if (error) {
+        throw new Error(error.message);
+      }
       console.log(`[Worker] Sent email receipt for ${data.paymentId}`);
-    }
-    return resendData;
-  } catch (err: any) {
+      return resendData;
+    },
+  ).catch(async (err: any) => {
     console.warn(`[Worker] Email dispatch error: ${err.message}`);
+    await recordDeadLetter('email', data.fromAddress, err);
     return null;
-  }
+  });
 }
 
 export async function enqueuePaymentAlert(data: AlertJobData) {

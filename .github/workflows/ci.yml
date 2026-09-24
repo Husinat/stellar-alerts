@@ -52,6 +52,8 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
         working-directory: apps/api
+        env:
+          DATABASE_URL: "postgresql://user:password@localhost:5432/stellar_alerts?schema=public"
 
       - name: Verify generated OpenAPI types are up to date
         run: npm run generate:types:check
@@ -111,6 +113,8 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
         working-directory: apps/api
+        env:
+          DATABASE_URL: "postgresql://user:password@localhost:5432/stellar_alerts?schema=public"
 
       - name: Build Shared Package (@stellar-alerts/shared)
         run: npx tsc -p packages/shared/tsconfig.json
