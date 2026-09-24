@@ -144,6 +144,7 @@ jobs:
         run: npx vitest run src/__tests__/chaos.test.ts
         env:
           TOXOPROXY_URL: http://localhost:8474
+          TOXIPROXY_UPSTREAM_HOST: host.docker.internal
 
       - name: Stop Toxoproxy
         if: always()

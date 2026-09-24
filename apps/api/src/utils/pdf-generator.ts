@@ -18,6 +18,32 @@ export interface LedgerStatementInput {
   payments: LedgerStatementPayment[];
 }
 
+interface MonthlyAssetTotal {
+  month: string;
+  asset: string;
+  total: number;
+}
+
+function buildMonthlyAssetTotals(payments: LedgerStatementPayment[]): MonthlyAssetTotal[] {
+  const totals = new Map<string, number>();
+
+  for (const payment of payments) {
+    const month = new Date(payment.receivedAt).toISOString().slice(0, 7);
+    const key = `${month}|${payment.asset}`;
+    const amount = Number(payment.amount);
+    totals.set(key, (totals.get(key) ?? 0) + (Number.isFinite(amount) ? amount : 0));
+  }
+
+  return Array.from(totals.entries())
+    .map(([key, total]) => {
+      const [month, asset] = key.split('|');
+      return { month, asset, total };
+    })
+    .sort((a, b) => a.month.localeCompare(b.month) || a.asset.localeCompare(b.asset));
+}
+
+const ROWS_PER_PAGE = 28;
+
 /**
  * Renders a PDF ledger statement for the given period and streams the bytes
  * back as a Buffer, so callers can attach it to an email without touching disk.
@@ -45,6 +71,21 @@ export function generateLedgerStatementPdf(input: LedgerStatementInput): Promise
     doc.fillColor('#000000');
     doc.moveDown(1);
 
+    const monthlyTotals = buildMonthlyAssetTotals(payments);
+    doc.fontSize(12).text('Monthly asset totals', { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(9).fillColor('#333333');
+
+    if (monthlyTotals.length === 0) {
+      doc.text('No transactions recorded for this period.');
+    } else {
+      for (const row of monthlyTotals) {
+        doc.text(`${row.month} — ${row.asset}: ${row.total}`);
+      }
+    }
+
+    doc.fillColor('#000000');
+    doc.moveDown(1);
     doc.fontSize(12).text(`Transactions (${payments.length})`, { underline: true });
     doc.moveDown(0.5);
 
@@ -60,7 +101,23 @@ export function generateLedgerStatementPdf(input: LedgerStatementInput): Promise
 
     doc.fontSize(8).fillColor('#000000');
     let total = 0;
+    let rowIndex = 0;
     for (const payment of payments) {
+      if (rowIndex > 0 && rowIndex % ROWS_PER_PAGE === 0) {
+        doc.addPage();
+        doc.fontSize(12).text('Transactions (continued)', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(9).fillColor('#333333');
+        doc.text('Date', columns.date, doc.y, { continued: true });
+        doc.text('Tx Hash', columns.hash, doc.y, { continued: true });
+        doc.text('From', columns.from, doc.y, { continued: true });
+        doc.text('Amount', columns.amount, doc.y);
+        doc.moveDown(0.3);
+        doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+        doc.moveDown(0.3);
+        doc.fontSize(8).fillColor('#000000');
+      }
+
       const receivedAt = new Date(payment.receivedAt);
       const amount = Number(payment.amount);
       total += Number.isFinite(amount) ? amount : 0;
@@ -70,6 +127,7 @@ export function generateLedgerStatementPdf(input: LedgerStatementInput): Promise
       doc.text(payment.txHash.slice(0, 16) + '…', columns.hash, rowY, { continued: true });
       doc.text(payment.fromAddress.slice(0, 12) + '…', columns.from, rowY, { continued: true });
       doc.text(`${payment.amount} ${payment.asset}`, columns.amount, rowY);
+      rowIndex += 1;
     }
 
     doc.moveDown(1);

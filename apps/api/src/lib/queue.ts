@@ -1,9 +1,29 @@
 import { Queue, QueueEvents, Job, Worker } from 'bullmq';
+import CircuitBreaker from 'opossum';
 import { Resend } from 'resend';
+import { cryptoVault } from '../utils/crypto-vault';
+import { applyWebhookPayloadTemplate } from '../utils/payload-template';
+import { adaptiveWebhookRateLimiter, waitForAdaptiveBackoff } from '../utils/rate-limiter';
+import { generateWebhookSignature } from '../utils/webhook-signer';
 import { prisma } from './prisma';
 import { createLogger } from './logger';
 import { deliverWithIdempotency } from './delivery';
 import { persistDeadLetter } from './dead-letter';
+
+function decryptWebhookSecret(webhook: {
+  keyVersion: number;
+  secretIv: string;
+  secretAuthTag: string;
+  secretCiphertext: string;
+}): string {
+  const encrypted = [
+    String(webhook.keyVersion),
+    webhook.secretIv,
+    webhook.secretAuthTag,
+    webhook.secretCiphertext,
+  ].join(':');
+  return cryptoVault.decrypt(encrypted);
+}
 
 const queueLog = createLogger({ module: 'Queue' });
 
@@ -195,7 +215,8 @@ export async function dispatchWebhookAndLog(webhookId: string, payload: any, ret
     }
 
     const payloadString = templateResult.body;
-    const signature = generateWebhookSignature(payloadString, webhook.secret);
+    const webhookSecret = decryptWebhookSecret(webhook);
+    const signature = generateWebhookSignature(payloadString, webhookSecret);
 
     const breaker = await getOrCreateCircuitBreaker(webhookId);
     const response = await breaker.fire(webhook.url, payloadString, {
