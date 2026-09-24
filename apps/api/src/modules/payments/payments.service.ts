@@ -1,4 +1,6 @@
 import { prisma, prismaRead } from '../../lib/prisma';
+import { isSupportedFiatCurrency, convertUsdToFiat, SupportedFiatCurrency } from '../../lib/exchange-rates';
+import { addDifferentialPrivacyNoise } from '../../utils/differential-privacy';
 
 export class PaymentsService {
   async getPayments(userId: string, walletId?: string, limit: number = 20) {

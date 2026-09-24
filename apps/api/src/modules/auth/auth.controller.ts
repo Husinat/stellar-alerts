@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { requestLinkSchema, verifyLinkSchema, telegramInitDataSchema, didChallengeSchema, didVerifySchema } from './auth.schema';
 import { authService } from './auth.service';
+import { mfaService } from './mfa.service';
 import { TelegramInitDataError } from '../../utils/telegram';
 import { createPublicKey, verify as cryptoVerify } from 'crypto';
 

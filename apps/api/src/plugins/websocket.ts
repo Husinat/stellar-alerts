@@ -85,7 +85,7 @@ export default fp(async (server: FastifyInstance) => {
   });
 
   // Register WebSocket upgrade endpoint
-  server.get('/ws', { websocket: true }, (socket: import('ws').WebSocket, request) => {
+  server.get('/ws', { websocket: true } as any, (socket: any, request: any) => {
     clients.add(socket);
     server.log.info(`🔗 WebSocket client connected (total: ${clients.size})`);
 

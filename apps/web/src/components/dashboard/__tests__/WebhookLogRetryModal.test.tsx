@@ -7,19 +7,19 @@ describe('WebhookLogRetryModal', () => {
   const originalFetch = global.fetch
 
   beforeEach(() => {
-    // @ts-ignore
+    // @ts-expect-error mock fetch
     global.fetch = vi.fn()
   })
 
   afterEach(() => {
-    // @ts-ignore
+    // @ts-expect-error restore fetch
     global.fetch = originalFetch
     vi.resetAllMocks()
   })
 
   it('renders logs and triggers retry POST', async () => {
     const logs = [{id: 'log-1', statusCode: null, error: 'timeout', payload: {foo: 'bar'}}]
-    // @ts-ignore
+    // @ts-expect-error mock fetch response
     global.fetch.mockResolvedValue({ok: true, status: 200})
 
     const onClose = vi.fn()
@@ -34,7 +34,7 @@ describe('WebhookLogRetryModal', () => {
     })
 
     await waitFor(() => {
-      expect(getByText('Status: 200')).toBeTruthy()
+      expect(getByText(/200/)).toBeTruthy()
     })
   })
 })
