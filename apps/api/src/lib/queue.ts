@@ -1,7 +1,30 @@
 import { Queue, QueueEvents, Job, Worker } from 'bullmq';
+import CircuitBreaker from 'opossum';
 import { Resend } from 'resend';
+import { cryptoVault } from '../utils/crypto-vault';
+import { applyWebhookPayloadTemplate } from '../utils/payload-template';
+import { adaptiveWebhookRateLimiter, waitForAdaptiveBackoff } from '../utils/rate-limiter';
+import { generateWebhookSignature } from '../utils/webhook-signer';
 import { prisma } from './prisma';
 import { createLogger } from './logger';
+import { publishDeliveryEvent } from './realtime';
+import { deliverWithIdempotency } from './delivery';
+import { persistDeadLetter } from './dead-letter';
+
+function decryptWebhookSecret(webhook: {
+  keyVersion: number;
+  secretIv: string;
+  secretAuthTag: string;
+  secretCiphertext: string;
+}): string {
+  const encrypted = [
+    String(webhook.keyVersion),
+    webhook.secretIv,
+    webhook.secretAuthTag,
+    webhook.secretCiphertext,
+  ].join(':');
+  return cryptoVault.decrypt(encrypted);
+}
 
 const queueLog = createLogger({ module: 'Queue' });
 
@@ -193,7 +216,8 @@ export async function dispatchWebhookAndLog(webhookId: string, payload: any, ret
     }
 
     const payloadString = templateResult.body;
-    const signature = generateWebhookSignature(payloadString, webhook.secret);
+    const webhookSecret = decryptWebhookSecret(webhook);
+    const signature = generateWebhookSignature(payloadString, webhookSecret);
 
     const breaker = await getOrCreateCircuitBreaker(webhookId);
     const response = await breaker.fire(webhook.url, payloadString, {
@@ -203,13 +227,14 @@ export async function dispatchWebhookAndLog(webhookId: string, payload: any, ret
 
     const responseBody = await response.text();
 
-    await prisma.webhookLog.create({
+    const deliveryLog = await prisma.webhookLog.create({
       data: {
         webhookId,
         statusCode: response.status,
         responseBody: responseBody.substring(0, 5000),
       },
     });
+    await publishDeliveryEvent(webhook.userId, deliveryLog);
     adaptiveWebhookRateLimiter.clear(webhook.url);
 
     // Reset circuit breaker to closed on success
@@ -277,12 +302,20 @@ export async function dispatchWebhookAndLog(webhookId: string, payload: any, ret
       await updateCircuitBreakerState(webhookId, "closed", failureCount);
     }
 
-    await prisma.webhookLog.create({
+    const failureLog = await prisma.webhookLog.create({
       data: {
         webhookId,
         error: error.message.substring(0, 1000),
       },
     });
+
+    const failedWebhook = await prisma.webhook.findUnique({
+      where: { id: webhookId },
+      select: { userId: true },
+    });
+    if (failedWebhook) {
+      await publishDeliveryEvent(failedWebhook.userId, failureLog);
+    }
 
     console.error(
       `[WebhookDispatch] Failed to dispatch webhook ${webhookId}: ${error.message}`,
@@ -364,6 +397,15 @@ try {
         await dlqQueue.add("dispatch-alert-failed", job.data, {
           jobId: `dlq-${jobId}`,
         });
+        // Persist a dead-letter so operators can inspect/replay/suppress this
+        // terminal failure even after the BullMQ queue is cleaned up (#273).
+        void persistDeadLetter({
+          channel: "queue",
+          destination: jobId,
+          paymentId: job.data?.paymentId ?? null,
+          payload: job.data ?? null,
+          error: failedReason || "Alert delivery job reached max attempts",
+        });
         queueLog.warn({ jobId, failedReason }, 'Moved failed job to DLQ');
       }
     } catch (e: any) {
@@ -383,6 +425,13 @@ export async function failedJobHandler({ jobId, failedReason }: { jobId?: string
     if (job && job.attemptsMade >= (job.opts.attempts || 5)) {
       await dlqQueue.add("dispatch-alert-failed", job.data, {
         jobId: `dlq-${jobId}`,
+      });
+      await persistDeadLetter({
+        channel: "queue",
+        destination: jobId,
+        paymentId: (job.data as AlertJobData | undefined)?.paymentId ?? null,
+        payload: job.data ?? null,
+        error: failedReason || "Alert delivery job reached max attempts",
       });
       console.log(
         `[Queue] 📨 Moved failed job ${jobId} to DLQ. Reason: ${failedReason}`,
@@ -447,52 +496,144 @@ export async function processAlertDispatch(data: AlertJobData) {
     },
   };
 
-  // Dispatch to all user webhooks (non-blocking)
+  const userId = wallet?.user?.id ?? null;
+
+  const recordDeadLetter = (channel: string, destination: string | null, err: any) =>
+    persistDeadLetter({
+      paymentId: data.paymentId,
+      userId,
+      channel,
+      destination,
+      payload: webhookPayload,
+      error: err?.message ?? String(err),
+    });
+
+  // Dispatch to all user webhooks (non-blocking). Every webhook POST is
+  // wrapped in the delivery idempotency gate so concurrent duplicate jobs
+  // produce a single provider request and restarted jobs never re-send a
+  // delivery that already succeeded (#272).
   if (wallet?.user?.webhooks && wallet.user.webhooks.length > 0) {
     await Promise.all(
       wallet.user.webhooks.map((webhook) =>
-        dispatchWebhookAndLog(webhook.id, webhookPayload),
+        deliverWithIdempotency(
+          {
+            paymentId: data.paymentId,
+            channel: "webhook",
+            destination: webhook.id,
+            userId,
+          },
+          async () => {
+            await dispatchWebhookAndLog(webhook.id, webhookPayload);
+          },
+        ).catch((err: any) => {
+          console.warn(`[Worker] Webhook dispatch had errors: ${err.message}`);
+        }),
       ),
-    ).catch((err) => {
-      console.warn(`[Worker] Webhook dispatch had errors: ${err.message}`);
-    });
+    );
   }
 
   // Dispatch Telegram alert if configured
   if (wallet?.user?.notifyPrefs?.telegramEnabled && wallet.user.notifyPrefs.telegramChatId) {
-    try {
-      const chatId = wallet.user.notifyPrefs.telegramChatId;
-      const botToken = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
-      if (isPublicChannel(chatId)) {
-        await assertBotIsChannelAdmin(botToken, chatId);
-      }
-      const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: isPublicChannel(chatId) ? buildTelegramPaymentCard(data) : `Payment Receipt:\nAmount: ${data.amount} ${data.asset}\nFrom: ${data.fromAddress}`,
-          ...(isPublicChannel(chatId) ? { parse_mode: 'HTML' } : {}),
-        })
+    const chatId = wallet.user.notifyPrefs.telegramChatId;
+    await deliverWithIdempotency(
+      {
+        paymentId: data.paymentId,
+        channel: "telegram",
+        destination: chatId,
+        userId,
+      },
+      async () => {
+        const botToken = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
+        if (isPublicChannel(chatId)) {
+          await assertBotIsChannelAdmin(botToken, chatId);
+        }
+        const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: isPublicChannel(chatId) ? buildTelegramPaymentCard(data) : `Payment Receipt:\nAmount: ${data.amount} ${data.asset}\nFrom: ${data.fromAddress}`,
+            ...(isPublicChannel(chatId) ? { parse_mode: 'HTML' } : {}),
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Telegram API responded with ${response.status} for ${data.paymentId}`);
+        }
+        console.log(`[Worker] Sent Telegram receipt for ${data.paymentId}`);
+      },
+    ).catch(async (err: any) => {
+      console.warn(`[Worker] Failed to send Telegram notification for ${data.paymentId}: ${err.message}`);
+      await recordDeadLetter('telegram', chatId, err);
+    });
+  }
+
+  // Dispatch WhatsApp alert if configured (opt-in via notifyPrefs.whatsappEnabled)
+  if (wallet?.user?.notifyPrefs?.whatsappEnabled && wallet.user.notifyPrefs.whatsappNumber) {
+    const toNumber = wallet.user.notifyPrefs.whatsappNumber;
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const fromNumber = process.env.TWILIO_WHATSAPP_FROM;
+
+    if (!accountSid || !authToken || !fromNumber) {
+      console.warn(`[Worker] WhatsApp alert skipped for ${data.paymentId}: Twilio is not configured`);
+    } else {
+      // Idempotency guard: skip if this payment already has a successful
+      // WhatsApp delivery logged (duplicate/retried job dispatch).
+      const alreadyDelivered = await prisma.whatsAppDeliveryLog.findFirst({
+        where: { paymentId: data.paymentId, toNumber, success: true },
       });
 
-      if (!response.ok) {
-        console.warn(`[Worker] Failed to send Telegram message for ${data.paymentId}`);
+      if (alreadyDelivered) {
+        console.log(`[Worker] WhatsApp alert already delivered for ${data.paymentId}, skipping`);
       } else {
-        console.log(`[Worker] Sent Telegram receipt for ${data.paymentId}`);
+        try {
+          const result = await dispatchWhatsAppAlert(toNumber, data, { accountSid, authToken, fromNumber });
+          await prisma.whatsAppDeliveryLog.create({
+            data: {
+              paymentId: data.paymentId,
+              toNumber,
+              success: result.success,
+              messageSid: result.messageSid,
+              status: result.status,
+              error: result.error,
+              attempts: result.attempts,
+            },
+          });
+
+          if (result.success) {
+            console.log(`[Worker] Sent WhatsApp receipt for ${data.paymentId} (sid: ${result.messageSid})`);
+          } else {
+            console.warn(`[Worker] Failed to send WhatsApp message for ${data.paymentId}: ${result.error}`);
+          }
+        } catch (err: any) {
+          if (err instanceof WhatsAppInvalidNumberError) {
+            await prisma.whatsAppDeliveryLog.create({
+              data: { paymentId: data.paymentId, toNumber, success: false, error: err.message, attempts: 0 },
+            });
+            console.warn(`[Worker] WhatsApp alert skipped for ${data.paymentId}: ${err.message}`);
+          } else {
+            console.warn(`[Worker] WhatsApp dispatch error for ${data.paymentId}: ${err.message}`);
+          }
+        }
       }
-    } catch (dbErr: any) {
-      console.warn(`[Worker] Failed to send Telegram notification for ${data.paymentId}: ${dbErr.message}`);
     }
   }
 
   // Send email alert
-  try {
-    const { data: resendData, error } = await resend.emails.send({
-      from: "Stellar Alerts <alerts@resend.dev>",
-      to: [data.fromAddress],
-      subject: `Payment Receipt: ${data.amount} ${data.asset}`,
-      html: `
+  await deliverWithIdempotency(
+    {
+      paymentId: data.paymentId,
+      channel: "email",
+      destination: data.fromAddress,
+      userId,
+    },
+    async () => {
+      const { data: resendData, error } = await resend.emails.send({
+        from: "Stellar Alerts <alerts@resend.dev>",
+        to: [data.fromAddress],
+        subject: `Payment Receipt: ${data.amount} ${data.asset}`,
+        html: `
       <h1>Payment Receipt</h1>
       <p><strong>Payment ID:</strong> ${data.paymentId}</p>
       <p><strong>Transaction Hash:</strong> ${data.txHash}</p>
@@ -500,18 +641,19 @@ export async function processAlertDispatch(data: AlertJobData) {
       <p><strong>From Address:</strong> ${data.fromAddress}</p>
       <p><strong>Received At:</strong> ${data.receivedAt}</p>
     `,
-    });
+      });
 
-    if (error) {
-      console.warn(`[Worker] Resend Email Notice: ${error.message}`);
-    } else {
+      if (error) {
+        throw new Error(error.message);
+      }
       console.log(`[Worker] Sent email receipt for ${data.paymentId}`);
-    }
-    return resendData;
-  } catch (err: any) {
+      return resendData;
+    },
+  ).catch(async (err: any) => {
     console.warn(`[Worker] Email dispatch error: ${err.message}`);
+    await recordDeadLetter('email', data.fromAddress, err);
     return null;
-  }
+  });
 }
 
 export async function enqueuePaymentAlert(data: AlertJobData) {

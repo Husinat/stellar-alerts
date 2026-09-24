@@ -11,3 +11,13 @@ export const verifyLinkSchema = z.object({
 export const telegramInitDataSchema = z.object({
   initData: z.string().min(1),
 });
+
+export const didChallengeSchema = z.object({
+  did: z.string().min(1).max(2048),
+});
+
+export const didVerifySchema = z.object({
+  did: z.string().min(1).max(2048),
+  challenge: z.string().min(1).max(4096),
+  signature: z.string().min(1).max(8192),
+});

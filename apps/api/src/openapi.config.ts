@@ -1,7 +1,12 @@
 import { z } from 'zod';
-import { requestLinkSchema, verifyLinkSchema } from './modules/auth/auth.schema';
+import { requestLinkSchema, verifyLinkSchema, didChallengeSchema, didVerifySchema } from './modules/auth/auth.schema';
 import { createWalletSchema } from './modules/wallets/wallets.schema';
 import { createWebhookSchema } from './modules/webhooks/webhooks.schema';
+import {
+  deadLetterIdSchema,
+  listDeadLettersQuerySchema,
+  suppressDeadLetterSchema,
+} from './modules/dead-letters/dead-letters.schema';
 
 /**
  * The `@fastify/swagger` registration options shared by `buildApp()`
@@ -18,8 +23,13 @@ import { createWebhookSchema } from './modules/webhooks/webhooks.schema';
 export const openApiComponentSchemas = {
   RequestLinkInput: z.toJSONSchema(requestLinkSchema),
   VerifyLinkInput: z.toJSONSchema(verifyLinkSchema),
+  DIDChallengeInput: z.toJSONSchema(didChallengeSchema),
+  DIDVerifyInput: z.toJSONSchema(didVerifySchema),
   CreateWalletInput: z.toJSONSchema(createWalletSchema),
   CreateWebhookInput: z.toJSONSchema(createWebhookSchema),
+  DeadLetterIdParams: z.toJSONSchema(deadLetterIdSchema),
+  ListDeadLettersQuery: z.toJSONSchema(listDeadLettersQuerySchema),
+  SuppressDeadLetterInput: z.toJSONSchema(suppressDeadLetterSchema),
 };
 
 export const openApiOptions = {
@@ -35,6 +45,7 @@ export const openApiOptions = {
       { name: 'wallets', description: 'Watched Stellar wallet management' },
       { name: 'payments', description: 'Incoming payment history and summaries' },
       { name: 'webhooks', description: 'Custom webhook alert endpoint management' },
+      { name: 'dead-letters', description: 'Inspection, replay and suppression of failed notification deliveries' },
     ],
     components: {
       schemas: openApiComponentSchemas as Record<string, any>,

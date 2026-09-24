@@ -6,6 +6,7 @@
 
 import { prisma } from '../../lib/prisma';
 import { mfaService } from '../auth/mfa.service';
+import { isValidE164Number } from '../../utils/whatsapp';
 
 export interface NotificationPreferences {
   telegramChatId?: string;
@@ -40,6 +41,20 @@ export class NotificationsService {
       const isValid = await mfaService.verifyMFAToken(userId, mfaToken);
       if (!isValid) {
         throw new Error('Invalid MFA token');
+      }
+    }
+
+    if (preferences.whatsappNumber !== undefined && preferences.whatsappNumber !== null) {
+      if (!isValidE164Number(preferences.whatsappNumber)) {
+        throw new Error('Invalid WhatsApp number: must be in E.164 format (e.g. +14155551234)');
+      }
+    }
+
+    if (preferences.whatsappEnabled) {
+      const existing = await prisma.notificationPreference.findUnique({ where: { userId } });
+      const effectiveNumber = preferences.whatsappNumber ?? existing?.whatsappNumber;
+      if (!effectiveNumber || !isValidE164Number(effectiveNumber)) {
+        throw new Error('A valid WhatsApp number is required to enable WhatsApp notifications');
       }
     }
 

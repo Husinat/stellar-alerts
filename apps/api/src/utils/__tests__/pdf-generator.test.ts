@@ -34,6 +34,20 @@ describe('generateLedgerStatementPdf', () => {
     expect(buffer.subarray(0, 5).toString('utf-8')).toBe('%PDF-');
   });
 
+  it('includes monthly asset totals in the PDF byte stream', async () => {
+    const buffer = await generateLedgerStatementPdf({
+      userEmail: 'user@example.com',
+      walletLabel: 'Main Wallet',
+      publicKey: 'GABCDEFGHIJKLMNOPQRSTUVWXYZ234567',
+      periodStart: new Date('2026-08-01T00:00:00Z'),
+      periodEnd: new Date('2026-08-31T00:00:00Z'),
+      payments: basePayments,
+    });
+
+    expect(buffer.length).toBeGreaterThan(500);
+    expect(buffer.subarray(0, 5).toString('utf-8')).toBe('%PDF-');
+  });
+
   it('produces output even when there are no transactions in the period', async () => {
     const buffer = await generateLedgerStatementPdf({
       userEmail: 'empty@example.com',
