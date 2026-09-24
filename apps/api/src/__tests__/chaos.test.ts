@@ -221,7 +221,7 @@ vi.mock('../lib/prisma', () => ({
   prisma: {
     wallet: { findMany: vi.fn() },
     payment: { findUnique: vi.fn(), create: vi.fn() },
-    ingestionCursor: { findUnique: vi.fn(), create: vi.fn(), upsert: vi.fn() },
+    ingestionCursor: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), upsert: vi.fn() },
     notificationPreference: { findUnique: vi.fn() },
   },
   connectWithRetry: vi.fn(),
@@ -234,6 +234,7 @@ vi.mock('../lib/stellar', () => ({
     server: {},
     getRecentPayments: vi.fn(),
     getPaymentsSince: vi.fn(),
+    getPaymentsSinceResult: vi.fn(),
     getLatestPagingToken: vi.fn(),
   },
 }));
@@ -265,7 +266,7 @@ describe('Chaos engineering: unhandled crash prevention (deterministic)', () => 
     ]);
     vi.mocked(prisma.ingestionCursor.findUnique).mockResolvedValue({ pagingToken: '100' } as any);
     // Simulated chaos fault: the network call to Horizon fails outright.
-    vi.mocked(stellar.getPaymentsSince).mockRejectedValue(new Error('ECONNRESET: simulated Horizon outage'));
+    vi.mocked(stellar.getPaymentsSinceResult).mockRejectedValue(new Error('ECONNRESET: simulated Horizon outage'));
 
     let unhandledRejection: unknown = null;
     const onUnhandled = (reason: unknown) => {
@@ -301,11 +302,22 @@ describe('Chaos engineering: unhandled crash prevention (deterministic)', () => 
     ]);
     vi.mocked(prisma.ingestionCursor.findUnique).mockResolvedValue({ pagingToken: '100' } as any);
 
-    vi.mocked(stellar.getPaymentsSince).mockRejectedValueOnce(new Error('simulated transient network blip'));
+    // First poll: Horizon is unreachable (provider outage, not a thrown
+    // error — see lib/cursor-recovery.ts / getPaymentsSinceResult).
+    vi.mocked(stellar.getPaymentsSinceResult).mockResolvedValueOnce({
+      records: [],
+      allNodesFailed: true,
+      lastError: 'simulated transient network blip',
+    });
     await expect(pollOnce()).resolves.toBeUndefined();
 
-    vi.mocked(stellar.getPaymentsSince).mockResolvedValueOnce([]);
+    // Second poll: the outage has cleared.
+    vi.mocked(stellar.getPaymentsSinceResult).mockResolvedValueOnce({
+      records: [],
+      allNodesFailed: false,
+      lastError: null,
+    });
     await expect(pollOnce()).resolves.toBeUndefined();
-    expect(stellar.getPaymentsSince).toHaveBeenCalledTimes(2);
+    expect(stellar.getPaymentsSinceResult).toHaveBeenCalledTimes(2);
   });
 });

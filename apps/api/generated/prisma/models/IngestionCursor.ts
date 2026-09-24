@@ -20,8 +20,20 @@ export type IngestionCursorModel = runtime.Types.Result.DefaultSelection<Prisma.
 
 export type AggregateIngestionCursor = {
   _count: IngestionCursorCountAggregateOutputType | null
+  _avg: IngestionCursorAvgAggregateOutputType | null
+  _sum: IngestionCursorSumAggregateOutputType | null
   _min: IngestionCursorMinAggregateOutputType | null
   _max: IngestionCursorMaxAggregateOutputType | null
+}
+
+export type IngestionCursorAvgAggregateOutputType = {
+  consecutiveFailures: number | null
+  lastGapLedgerDelta: number | null
+}
+
+export type IngestionCursorSumAggregateOutputType = {
+  consecutiveFailures: number | null
+  lastGapLedgerDelta: number | null
 }
 
 export type IngestionCursorMinAggregateOutputType = {
@@ -30,6 +42,12 @@ export type IngestionCursorMinAggregateOutputType = {
   pagingToken: string | null
   lastSyncedAt: Date | null
   createdAt: Date | null
+  status: string | null
+  consecutiveFailures: number | null
+  lastError: string | null
+  lastSuccessAt: Date | null
+  gapDetectedAt: Date | null
+  lastGapLedgerDelta: number | null
 }
 
 export type IngestionCursorMaxAggregateOutputType = {
@@ -38,6 +56,12 @@ export type IngestionCursorMaxAggregateOutputType = {
   pagingToken: string | null
   lastSyncedAt: Date | null
   createdAt: Date | null
+  status: string | null
+  consecutiveFailures: number | null
+  lastError: string | null
+  lastSuccessAt: Date | null
+  gapDetectedAt: Date | null
+  lastGapLedgerDelta: number | null
 }
 
 export type IngestionCursorCountAggregateOutputType = {
@@ -46,9 +70,25 @@ export type IngestionCursorCountAggregateOutputType = {
   pagingToken: number
   lastSyncedAt: number
   createdAt: number
+  status: number
+  consecutiveFailures: number
+  lastError: number
+  lastSuccessAt: number
+  gapDetectedAt: number
+  lastGapLedgerDelta: number
   _all: number
 }
 
+
+export type IngestionCursorAvgAggregateInputType = {
+  consecutiveFailures?: true
+  lastGapLedgerDelta?: true
+}
+
+export type IngestionCursorSumAggregateInputType = {
+  consecutiveFailures?: true
+  lastGapLedgerDelta?: true
+}
 
 export type IngestionCursorMinAggregateInputType = {
   id?: true
@@ -56,6 +96,12 @@ export type IngestionCursorMinAggregateInputType = {
   pagingToken?: true
   lastSyncedAt?: true
   createdAt?: true
+  status?: true
+  consecutiveFailures?: true
+  lastError?: true
+  lastSuccessAt?: true
+  gapDetectedAt?: true
+  lastGapLedgerDelta?: true
 }
 
 export type IngestionCursorMaxAggregateInputType = {
@@ -64,6 +110,12 @@ export type IngestionCursorMaxAggregateInputType = {
   pagingToken?: true
   lastSyncedAt?: true
   createdAt?: true
+  status?: true
+  consecutiveFailures?: true
+  lastError?: true
+  lastSuccessAt?: true
+  gapDetectedAt?: true
+  lastGapLedgerDelta?: true
 }
 
 export type IngestionCursorCountAggregateInputType = {
@@ -72,6 +124,12 @@ export type IngestionCursorCountAggregateInputType = {
   pagingToken?: true
   lastSyncedAt?: true
   createdAt?: true
+  status?: true
+  consecutiveFailures?: true
+  lastError?: true
+  lastSuccessAt?: true
+  gapDetectedAt?: true
+  lastGapLedgerDelta?: true
   _all?: true
 }
 
@@ -113,6 +171,18 @@ export type IngestionCursorAggregateArgs<ExtArgs extends runtime.Types.Extension
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
+   * Select which fields to average
+  **/
+  _avg?: IngestionCursorAvgAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
+   * Select which fields to sum
+  **/
+  _sum?: IngestionCursorSumAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
    * Select which fields to find the minimum value
   **/
   _min?: IngestionCursorMinAggregateInputType
@@ -143,6 +213,8 @@ export type IngestionCursorGroupByArgs<ExtArgs extends runtime.Types.Extensions.
   take?: number
   skip?: number
   _count?: IngestionCursorCountAggregateInputType | true
+  _avg?: IngestionCursorAvgAggregateInputType
+  _sum?: IngestionCursorSumAggregateInputType
   _min?: IngestionCursorMinAggregateInputType
   _max?: IngestionCursorMaxAggregateInputType
 }
@@ -153,7 +225,15 @@ export type IngestionCursorGroupByOutputType = {
   pagingToken: string
   lastSyncedAt: Date
   createdAt: Date
+  status: string
+  consecutiveFailures: number
+  lastError: string | null
+  lastSuccessAt: Date | null
+  gapDetectedAt: Date | null
+  lastGapLedgerDelta: number | null
   _count: IngestionCursorCountAggregateOutputType | null
+  _avg: IngestionCursorAvgAggregateOutputType | null
+  _sum: IngestionCursorSumAggregateOutputType | null
   _min: IngestionCursorMinAggregateOutputType | null
   _max: IngestionCursorMaxAggregateOutputType | null
 }
@@ -182,6 +262,12 @@ export type IngestionCursorWhereInput = {
   pagingToken?: Prisma.StringFilter<"IngestionCursor"> | string
   lastSyncedAt?: Prisma.DateTimeFilter<"IngestionCursor"> | Date | string
   createdAt?: Prisma.DateTimeFilter<"IngestionCursor"> | Date | string
+  status?: Prisma.StringFilter<"IngestionCursor"> | string
+  consecutiveFailures?: Prisma.IntFilter<"IngestionCursor"> | number
+  lastError?: Prisma.StringNullableFilter<"IngestionCursor"> | string | null
+  lastSuccessAt?: Prisma.DateTimeNullableFilter<"IngestionCursor"> | Date | string | null
+  gapDetectedAt?: Prisma.DateTimeNullableFilter<"IngestionCursor"> | Date | string | null
+  lastGapLedgerDelta?: Prisma.IntNullableFilter<"IngestionCursor"> | number | null
   wallet?: Prisma.XOR<Prisma.WalletScalarRelationFilter, Prisma.WalletWhereInput>
 }
 
@@ -191,6 +277,12 @@ export type IngestionCursorOrderByWithRelationInput = {
   pagingToken?: Prisma.SortOrder
   lastSyncedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  status?: Prisma.SortOrder
+  consecutiveFailures?: Prisma.SortOrder
+  lastError?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastSuccessAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  gapDetectedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastGapLedgerDelta?: Prisma.SortOrderInput | Prisma.SortOrder
   wallet?: Prisma.WalletOrderByWithRelationInput
 }
 
@@ -203,6 +295,12 @@ export type IngestionCursorWhereUniqueInput = Prisma.AtLeast<{
   pagingToken?: Prisma.StringFilter<"IngestionCursor"> | string
   lastSyncedAt?: Prisma.DateTimeFilter<"IngestionCursor"> | Date | string
   createdAt?: Prisma.DateTimeFilter<"IngestionCursor"> | Date | string
+  status?: Prisma.StringFilter<"IngestionCursor"> | string
+  consecutiveFailures?: Prisma.IntFilter<"IngestionCursor"> | number
+  lastError?: Prisma.StringNullableFilter<"IngestionCursor"> | string | null
+  lastSuccessAt?: Prisma.DateTimeNullableFilter<"IngestionCursor"> | Date | string | null
+  gapDetectedAt?: Prisma.DateTimeNullableFilter<"IngestionCursor"> | Date | string | null
+  lastGapLedgerDelta?: Prisma.IntNullableFilter<"IngestionCursor"> | number | null
   wallet?: Prisma.XOR<Prisma.WalletScalarRelationFilter, Prisma.WalletWhereInput>
 }, "id" | "walletId">
 
@@ -212,9 +310,17 @@ export type IngestionCursorOrderByWithAggregationInput = {
   pagingToken?: Prisma.SortOrder
   lastSyncedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  status?: Prisma.SortOrder
+  consecutiveFailures?: Prisma.SortOrder
+  lastError?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastSuccessAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  gapDetectedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastGapLedgerDelta?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.IngestionCursorCountOrderByAggregateInput
+  _avg?: Prisma.IngestionCursorAvgOrderByAggregateInput
   _max?: Prisma.IngestionCursorMaxOrderByAggregateInput
   _min?: Prisma.IngestionCursorMinOrderByAggregateInput
+  _sum?: Prisma.IngestionCursorSumOrderByAggregateInput
 }
 
 export type IngestionCursorScalarWhereWithAggregatesInput = {
@@ -226,6 +332,12 @@ export type IngestionCursorScalarWhereWithAggregatesInput = {
   pagingToken?: Prisma.StringWithAggregatesFilter<"IngestionCursor"> | string
   lastSyncedAt?: Prisma.DateTimeWithAggregatesFilter<"IngestionCursor"> | Date | string
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"IngestionCursor"> | Date | string
+  status?: Prisma.StringWithAggregatesFilter<"IngestionCursor"> | string
+  consecutiveFailures?: Prisma.IntWithAggregatesFilter<"IngestionCursor"> | number
+  lastError?: Prisma.StringNullableWithAggregatesFilter<"IngestionCursor"> | string | null
+  lastSuccessAt?: Prisma.DateTimeNullableWithAggregatesFilter<"IngestionCursor"> | Date | string | null
+  gapDetectedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"IngestionCursor"> | Date | string | null
+  lastGapLedgerDelta?: Prisma.IntNullableWithAggregatesFilter<"IngestionCursor"> | number | null
 }
 
 export type IngestionCursorCreateInput = {
@@ -233,6 +345,12 @@ export type IngestionCursorCreateInput = {
   pagingToken: string
   lastSyncedAt?: Date | string
   createdAt?: Date | string
+  status?: string
+  consecutiveFailures?: number
+  lastError?: string | null
+  lastSuccessAt?: Date | string | null
+  gapDetectedAt?: Date | string | null
+  lastGapLedgerDelta?: number | null
   wallet: Prisma.WalletCreateNestedOneWithoutCursorInput
 }
 
@@ -242,6 +360,12 @@ export type IngestionCursorUncheckedCreateInput = {
   pagingToken: string
   lastSyncedAt?: Date | string
   createdAt?: Date | string
+  status?: string
+  consecutiveFailures?: number
+  lastError?: string | null
+  lastSuccessAt?: Date | string | null
+  gapDetectedAt?: Date | string | null
+  lastGapLedgerDelta?: number | null
 }
 
 export type IngestionCursorUpdateInput = {
@@ -249,6 +373,12 @@ export type IngestionCursorUpdateInput = {
   pagingToken?: Prisma.StringFieldUpdateOperationsInput | string
   lastSyncedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  consecutiveFailures?: Prisma.IntFieldUpdateOperationsInput | number
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSuccessAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gapDetectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastGapLedgerDelta?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   wallet?: Prisma.WalletUpdateOneRequiredWithoutCursorNestedInput
 }
 
@@ -258,6 +388,12 @@ export type IngestionCursorUncheckedUpdateInput = {
   pagingToken?: Prisma.StringFieldUpdateOperationsInput | string
   lastSyncedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  consecutiveFailures?: Prisma.IntFieldUpdateOperationsInput | number
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSuccessAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gapDetectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastGapLedgerDelta?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
 }
 
 export type IngestionCursorCreateManyInput = {
@@ -266,6 +402,12 @@ export type IngestionCursorCreateManyInput = {
   pagingToken: string
   lastSyncedAt?: Date | string
   createdAt?: Date | string
+  status?: string
+  consecutiveFailures?: number
+  lastError?: string | null
+  lastSuccessAt?: Date | string | null
+  gapDetectedAt?: Date | string | null
+  lastGapLedgerDelta?: number | null
 }
 
 export type IngestionCursorUpdateManyMutationInput = {
@@ -273,6 +415,12 @@ export type IngestionCursorUpdateManyMutationInput = {
   pagingToken?: Prisma.StringFieldUpdateOperationsInput | string
   lastSyncedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  consecutiveFailures?: Prisma.IntFieldUpdateOperationsInput | number
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSuccessAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gapDetectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastGapLedgerDelta?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
 }
 
 export type IngestionCursorUncheckedUpdateManyInput = {
@@ -281,6 +429,12 @@ export type IngestionCursorUncheckedUpdateManyInput = {
   pagingToken?: Prisma.StringFieldUpdateOperationsInput | string
   lastSyncedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  consecutiveFailures?: Prisma.IntFieldUpdateOperationsInput | number
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSuccessAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gapDetectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastGapLedgerDelta?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
 }
 
 export type IngestionCursorNullableScalarRelationFilter = {
@@ -294,6 +448,17 @@ export type IngestionCursorCountOrderByAggregateInput = {
   pagingToken?: Prisma.SortOrder
   lastSyncedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  status?: Prisma.SortOrder
+  consecutiveFailures?: Prisma.SortOrder
+  lastError?: Prisma.SortOrder
+  lastSuccessAt?: Prisma.SortOrder
+  gapDetectedAt?: Prisma.SortOrder
+  lastGapLedgerDelta?: Prisma.SortOrder
+}
+
+export type IngestionCursorAvgOrderByAggregateInput = {
+  consecutiveFailures?: Prisma.SortOrder
+  lastGapLedgerDelta?: Prisma.SortOrder
 }
 
 export type IngestionCursorMaxOrderByAggregateInput = {
@@ -302,6 +467,12 @@ export type IngestionCursorMaxOrderByAggregateInput = {
   pagingToken?: Prisma.SortOrder
   lastSyncedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  status?: Prisma.SortOrder
+  consecutiveFailures?: Prisma.SortOrder
+  lastError?: Prisma.SortOrder
+  lastSuccessAt?: Prisma.SortOrder
+  gapDetectedAt?: Prisma.SortOrder
+  lastGapLedgerDelta?: Prisma.SortOrder
 }
 
 export type IngestionCursorMinOrderByAggregateInput = {
@@ -310,6 +481,17 @@ export type IngestionCursorMinOrderByAggregateInput = {
   pagingToken?: Prisma.SortOrder
   lastSyncedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  status?: Prisma.SortOrder
+  consecutiveFailures?: Prisma.SortOrder
+  lastError?: Prisma.SortOrder
+  lastSuccessAt?: Prisma.SortOrder
+  gapDetectedAt?: Prisma.SortOrder
+  lastGapLedgerDelta?: Prisma.SortOrder
+}
+
+export type IngestionCursorSumOrderByAggregateInput = {
+  consecutiveFailures?: Prisma.SortOrder
+  lastGapLedgerDelta?: Prisma.SortOrder
 }
 
 export type IngestionCursorCreateNestedOneWithoutWalletInput = {
@@ -344,11 +526,37 @@ export type IngestionCursorUncheckedUpdateOneWithoutWalletNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.IngestionCursorUpdateToOneWithWhereWithoutWalletInput, Prisma.IngestionCursorUpdateWithoutWalletInput>, Prisma.IngestionCursorUncheckedUpdateWithoutWalletInput>
 }
 
+export type IntFieldUpdateOperationsInput = {
+  set?: number
+  increment?: number
+  decrement?: number
+  multiply?: number
+  divide?: number
+}
+
+export type NullableDateTimeFieldUpdateOperationsInput = {
+  set?: Date | string | null
+}
+
+export type NullableIntFieldUpdateOperationsInput = {
+  set?: number | null
+  increment?: number
+  decrement?: number
+  multiply?: number
+  divide?: number
+}
+
 export type IngestionCursorCreateWithoutWalletInput = {
   id?: string
   pagingToken: string
   lastSyncedAt?: Date | string
   createdAt?: Date | string
+  status?: string
+  consecutiveFailures?: number
+  lastError?: string | null
+  lastSuccessAt?: Date | string | null
+  gapDetectedAt?: Date | string | null
+  lastGapLedgerDelta?: number | null
 }
 
 export type IngestionCursorUncheckedCreateWithoutWalletInput = {
@@ -356,6 +564,12 @@ export type IngestionCursorUncheckedCreateWithoutWalletInput = {
   pagingToken: string
   lastSyncedAt?: Date | string
   createdAt?: Date | string
+  status?: string
+  consecutiveFailures?: number
+  lastError?: string | null
+  lastSuccessAt?: Date | string | null
+  gapDetectedAt?: Date | string | null
+  lastGapLedgerDelta?: number | null
 }
 
 export type IngestionCursorCreateOrConnectWithoutWalletInput = {
@@ -379,6 +593,12 @@ export type IngestionCursorUpdateWithoutWalletInput = {
   pagingToken?: Prisma.StringFieldUpdateOperationsInput | string
   lastSyncedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  consecutiveFailures?: Prisma.IntFieldUpdateOperationsInput | number
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSuccessAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gapDetectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastGapLedgerDelta?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
 }
 
 export type IngestionCursorUncheckedUpdateWithoutWalletInput = {
@@ -386,6 +606,12 @@ export type IngestionCursorUncheckedUpdateWithoutWalletInput = {
   pagingToken?: Prisma.StringFieldUpdateOperationsInput | string
   lastSyncedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  consecutiveFailures?: Prisma.IntFieldUpdateOperationsInput | number
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSuccessAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gapDetectedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastGapLedgerDelta?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
 }
 
 
@@ -396,6 +622,12 @@ export type IngestionCursorSelect<ExtArgs extends runtime.Types.Extensions.Inter
   pagingToken?: boolean
   lastSyncedAt?: boolean
   createdAt?: boolean
+  status?: boolean
+  consecutiveFailures?: boolean
+  lastError?: boolean
+  lastSuccessAt?: boolean
+  gapDetectedAt?: boolean
+  lastGapLedgerDelta?: boolean
   wallet?: boolean | Prisma.WalletDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["ingestionCursor"]>
 
@@ -405,6 +637,12 @@ export type IngestionCursorSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   pagingToken?: boolean
   lastSyncedAt?: boolean
   createdAt?: boolean
+  status?: boolean
+  consecutiveFailures?: boolean
+  lastError?: boolean
+  lastSuccessAt?: boolean
+  gapDetectedAt?: boolean
+  lastGapLedgerDelta?: boolean
   wallet?: boolean | Prisma.WalletDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["ingestionCursor"]>
 
@@ -414,6 +652,12 @@ export type IngestionCursorSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   pagingToken?: boolean
   lastSyncedAt?: boolean
   createdAt?: boolean
+  status?: boolean
+  consecutiveFailures?: boolean
+  lastError?: boolean
+  lastSuccessAt?: boolean
+  gapDetectedAt?: boolean
+  lastGapLedgerDelta?: boolean
   wallet?: boolean | Prisma.WalletDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["ingestionCursor"]>
 
@@ -423,9 +667,15 @@ export type IngestionCursorSelectScalar = {
   pagingToken?: boolean
   lastSyncedAt?: boolean
   createdAt?: boolean
+  status?: boolean
+  consecutiveFailures?: boolean
+  lastError?: boolean
+  lastSuccessAt?: boolean
+  gapDetectedAt?: boolean
+  lastGapLedgerDelta?: boolean
 }
 
-export type IngestionCursorOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "walletId" | "pagingToken" | "lastSyncedAt" | "createdAt", ExtArgs["result"]["ingestionCursor"]>
+export type IngestionCursorOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "walletId" | "pagingToken" | "lastSyncedAt" | "createdAt" | "status" | "consecutiveFailures" | "lastError" | "lastSuccessAt" | "gapDetectedAt" | "lastGapLedgerDelta", ExtArgs["result"]["ingestionCursor"]>
 export type IngestionCursorInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   wallet?: boolean | Prisma.WalletDefaultArgs<ExtArgs>
 }
@@ -447,6 +697,12 @@ export type $IngestionCursorPayload<ExtArgs extends runtime.Types.Extensions.Int
     pagingToken: string
     lastSyncedAt: Date
     createdAt: Date
+    status: string
+    consecutiveFailures: number
+    lastError: string | null
+    lastSuccessAt: Date | null
+    gapDetectedAt: Date | null
+    lastGapLedgerDelta: number | null
   }, ExtArgs["result"]["ingestionCursor"]>
   composites: {}
 }
@@ -876,6 +1132,12 @@ export interface IngestionCursorFieldRefs {
   readonly pagingToken: Prisma.FieldRef<"IngestionCursor", 'String'>
   readonly lastSyncedAt: Prisma.FieldRef<"IngestionCursor", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"IngestionCursor", 'DateTime'>
+  readonly status: Prisma.FieldRef<"IngestionCursor", 'String'>
+  readonly consecutiveFailures: Prisma.FieldRef<"IngestionCursor", 'Int'>
+  readonly lastError: Prisma.FieldRef<"IngestionCursor", 'String'>
+  readonly lastSuccessAt: Prisma.FieldRef<"IngestionCursor", 'DateTime'>
+  readonly gapDetectedAt: Prisma.FieldRef<"IngestionCursor", 'DateTime'>
+  readonly lastGapLedgerDelta: Prisma.FieldRef<"IngestionCursor", 'Int'>
 }
     
 

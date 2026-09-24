@@ -119,10 +119,10 @@ jobs:
       - name: Build Shared Package (@stellar-alerts/shared)
         run: npx tsc -p packages/shared/tsconfig.json
 
-      # docker-compose.yml runs toxiproxy with network_mode: host, which is
-      # Linux-only — exactly what ubuntu-latest runners are, so this needs
-      # no extra host-gateway wiring (the chaos suite's own fixture server
-      # binds to 127.0.0.1, directly reachable from the toxiproxy container).
+      # docker-compose.yml port-maps toxiproxy and points it at the host via
+      # host.docker.internal (an extra_hosts host-gateway entry), since the
+      # chaos suite's fixture server binds to localhost on the runner, not
+      # inside the toxiproxy container.
       - name: Start Toxiproxy
         run: docker compose up -d toxiproxy
 
@@ -144,6 +144,7 @@ jobs:
         run: npx vitest run src/__tests__/chaos.test.ts
         env:
           TOXIPROXY_URL: http://localhost:8474
+          TOXIPROXY_UPSTREAM_HOST: host.docker.internal
 
       - name: Stop Toxiproxy
         if: always()

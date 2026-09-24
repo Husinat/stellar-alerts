@@ -17,6 +17,14 @@ export interface components {
         VerifyLinkInput: {
             token: string;
         };
+        DIDChallengeInput: {
+            did: string;
+        };
+        DIDVerifyInput: {
+            did: string;
+            challenge: string;
+            signature: string;
+        };
         CreateWalletInput: {
             publicKey: string;
             label?: string;
@@ -27,6 +35,23 @@ export interface components {
             /** Format: uri */
             url: string;
             payloadTemplate?: string;
+        };
+        DeadLetterIdParams: {
+            id: string;
+        };
+        ListDeadLettersQuery: {
+            channel?: string;
+            /** @enum {string} */
+            status?: "pending" | "retried" | "suppressed";
+            q?: string;
+            maxAgeDays?: number;
+            /** @default 1 */
+            page: number;
+            /** @default 20 */
+            pageSize: number;
+        };
+        SuppressDeadLetterInput: {
+            note?: string;
         };
     };
     responses: never;

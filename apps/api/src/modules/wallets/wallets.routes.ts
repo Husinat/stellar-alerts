@@ -7,5 +7,6 @@ export async function walletsRoutes(app: FastifyInstance) {
 
   app.post('/wallets', walletsController.addWallet.bind(walletsController));
   app.get('/wallets', walletsController.getWallets.bind(walletsController));
+  app.get('/wallets/:id/ingestion-status', walletsController.getIngestionStatus.bind(walletsController));
   app.delete('/wallets/:id', walletsController.deleteWallet.bind(walletsController));
 }

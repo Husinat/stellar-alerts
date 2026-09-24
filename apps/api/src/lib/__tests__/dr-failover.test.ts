@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
+  FailoverManager,
   monitorAndFailover,
   simulateDNSBlackhole,
   triggerFailover,
@@ -8,7 +9,7 @@ import {
   DRConfig,
 } from '../../../../../scripts/dr-failover';
 
-describe('Multi-Region Disaster Recovery Sync Engine (#144)', () => {
+describe('FailoverManager — multi-region active-passive promotion (#237)', () => {
   const testConfig: DRConfig = {
     primaryDatabaseUrl: 'postgresql://user:pass@primary-db.internal:5432/db',
     secondaryDatabaseUrl: 'postgresql://user:pass@secondary-db.internal:5432/db_failover',
@@ -71,5 +72,17 @@ describe('Multi-Region Disaster Recovery Sync Engine (#144)', () => {
     await monitorAndFailover(testConfig, async () => true);
     expect(getDRStatus().consecutiveFailures).toBe(0);
     expect(getDRStatus().activeRegion).toBe('PRIMARY');
+  });
+
+  it('should promote secondary through FailoverManager state ticks', async () => {
+    const manager = new FailoverManager(testConfig, async () => false);
+
+    await manager.evaluatePromotion();
+    await manager.evaluatePromotion();
+    const status = await manager.evaluatePromotion();
+
+    expect(status.activeRegion).toBe('SECONDARY');
+    expect(manager.getStatus().activeDatabaseUrl).toBe(testConfig.secondaryDatabaseUrl);
+    manager.stop();
   });
 });
