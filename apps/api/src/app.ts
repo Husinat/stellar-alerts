@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
+import multipart from '@fastify/multipart';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { env } from './config/env';
@@ -58,6 +59,15 @@ export const buildApp = async () => {
     global: true,
     max: env.RATE_LIMIT_MAX,
     timeWindow: '1 minute',
+  });
+
+  await app.register(multipart, {
+    limits: {
+      // Per-file cap; the wasm-analyzer route additionally enforces
+      // env.WASM_ANALYZER_MAX_UPLOAD_BYTES per request via request.file().
+      fileSize: env.WASM_ANALYZER_MAX_UPLOAD_BYTES,
+      files: 1,
+    },
   });
 
   await app.register(swagger, openApiOptions);
