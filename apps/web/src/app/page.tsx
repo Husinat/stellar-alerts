@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import NetworkVisualizer3D from '@/components/dashboard/NetworkVisualizer3D';
 import AuditWorkspace from '@/components/dashboard/AuditWorkspace';
 import { signOut, useSession } from 'next-auth/react';
 import { WalletDTO, PaymentDTO } from '@stellar-alerts/shared';
 import { WatcherForm } from '@/components/WatcherForm';
+import { CommandPalette } from '@/components/CommandPalette';
 import {
   DashboardGrid,
   SummaryStats,
@@ -16,6 +18,7 @@ import {
   NotificationModal,
   ActivityHeatmap,
   EmailTemplatePreview,
+  EmailTemplateConfig,
 } from '@/components/dashboard';
 import { useBatchReader } from '@/lib/hooks/useBatchReader';
 
@@ -45,7 +48,7 @@ export default function Home() {
   // Helper to get auth headers (kept for non-batched endpoints like auth)
   const getHeaders = useCallback(() => {
     const headers: Record<string, string> = {};
-    const accessToken = (session as (typeof session & AppSession) | null)?.accessToken;
+    const accessToken = (session as (typeof session & { accessToken?: string }) | null)?.accessToken;
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
     }
@@ -395,7 +398,7 @@ export default function Home() {
                   <div id="add-wallet-section" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                     {/* Watcher Form Card */}
                     <div className="lg:col-span-4 bg-[#0c0c14]/80 backdrop-blur-md rounded-3xl border border-white/10 p-7 shadow-2xl hover:border-cyan-500/30 transition-all duration-500">
-                      <WatcherForm onWalletAdded={() => { fetchWallets(); fetchPayments(); fetchSummary(); }} />
+                      <WatcherForm onWalletAdded={() => { fetchDashboardData(); }} />
                     </div>
 
                     {/* Modular Component 3: PaymentTable */}

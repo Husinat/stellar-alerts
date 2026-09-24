@@ -55,4 +55,6 @@ const handler = NextAuth({
     }
   },
   secret: nextAuthSecret,
-}
+});
+
+export { handler as GET, handler as POST };
