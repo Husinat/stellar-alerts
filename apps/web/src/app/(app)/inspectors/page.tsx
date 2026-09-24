@@ -15,25 +15,24 @@ export default function InspectorsPage() {
   const { data: session } = useSession();
   const batchReader = useBatchReader();
   const [payments, setPayments] = useState<PaymentDTO[]>([]);
-  const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchPayments = useCallback(async () => {
     if (!session) return;
     setIsLoading(true);
     try {
-      const data = await batchReader.fetchUserPortfolioBatched(selectedWalletId || undefined);
+      const data = await batchReader.fetchUserPortfolioBatched();
       setPayments(data.payments);
     } catch (err) {
       console.error('Failed to fetch payments:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [session, selectedWalletId, batchReader]);
+  }, [session, batchReader]);
 
   useEffect(() => {
     if (session) void fetchPayments();
-  }, [session, selectedWalletId, fetchPayments]);
+  }, [session, fetchPayments]);
 
   return (
     <div className="space-y-12">

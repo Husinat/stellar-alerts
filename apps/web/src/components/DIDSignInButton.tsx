@@ -208,7 +208,7 @@ export function DIDSignInButton({
             data-testid="did-sign-challenge"
             className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm transition-all cursor-pointer disabled:opacity-50"
           >
-            I've signed it — continue
+            I&apos;ve signed it — continue
           </button>
         </div>
       )}

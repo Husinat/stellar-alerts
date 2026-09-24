@@ -24,7 +24,7 @@ export default function SettingsPage() {
     const headers: Record<string, string> = {};
     if (session?.accessToken) headers['Authorization'] = `Bearer ${session.accessToken}`;
     return headers;
-  }, [session?.accessToken]);
+  }, [session]);
 
   const handleSavePreferences = async (e: React.FormEvent) => {
     e.preventDefault();

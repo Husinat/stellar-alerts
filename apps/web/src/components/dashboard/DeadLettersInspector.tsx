@@ -36,6 +36,12 @@ interface DeadLetterListResponse {
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
 }
 
+interface DeadLetterFilters {
+  channel?: string;
+  status?: string;
+  q?: string;
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 
 const CHANNEL_STYLES: Record<string, string> = {
@@ -78,18 +84,24 @@ export function DeadLettersInspector() {
   const [selected, setSelected] = useState<DeadLetterDetail | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<{ channel?: string; status?: string; q?: string }>({});
+  const [filters, setFilters] = useState<DeadLetterFilters>({});
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestRef = useRef<{ page: number; pageSize: number; filters: DeadLetterFilters }>({
+    page: 1,
+    pageSize: 20,
+    filters: {},
+  });
+  latestRef.current = { page: pagination.page, pageSize: pagination.pageSize, filters };
 
   const fetchItems = useCallback(
-    async (page = pagination.page, nextFilters = filters) => {
+    async (page: number, nextFilters: DeadLetterFilters, pageSize: number) => {
       if (!session?.accessToken) return;
       setLoading(true);
       setError(null);
       try {
         const params = new URLSearchParams();
         params.set('page', String(page));
-        params.set('pageSize', String(pagination.pageSize));
+        params.set('pageSize', String(pageSize));
         if (nextFilters.channel) params.set('channel', nextFilters.channel);
         if (nextFilters.status) params.set('status', nextFilters.status);
         if (nextFilters.q) params.set('q', nextFilters.q);
@@ -108,11 +120,11 @@ export function DeadLettersInspector() {
         setLoading(false);
       }
     },
-    [session?.accessToken, pagination.pageSize],
+    [session],
   );
 
   useEffect(() => {
-    void fetchItems();
+    void fetchItems(latestRef.current.page, latestRef.current.filters, latestRef.current.pageSize);
   }, [fetchItems]);
 
   const openDetail = useCallback(async (id: string) => {
@@ -129,7 +141,7 @@ export function DeadLettersInspector() {
     } catch {
       setSelected(null);
     }
-  }, [session?.accessToken]);
+  }, [session]);
 
   const runAction = useCallback(
     async (id: string, action: 'replay' | 'suppress') => {
@@ -145,7 +157,7 @@ export function DeadLettersInspector() {
         if (!res.ok) {
           throw new Error((data as any).message || data.error || `Failed to ${action}`);
         }
-        await fetchItems();
+        await fetchItems(latestRef.current.page, latestRef.current.filters, latestRef.current.pageSize);
         if (selected?.id === id) {
           await openDetail(id);
         }
@@ -155,7 +167,7 @@ export function DeadLettersInspector() {
         setActingId(null);
       }
     },
-    [session?.accessToken, fetchItems, selected?.id, openDetail],
+    [session, fetchItems, selected, openDetail],
   );
 
   return (
@@ -167,7 +179,7 @@ export function DeadLettersInspector() {
           onChange={(e) => {
             const next = { ...filters, channel: e.target.value || undefined };
             setFilters(next);
-            void fetchItems(1, next);
+            void fetchItems(1, next, pagination.pageSize);
           }}
           data-testid="dead-letters-channel-filter"
           className="px-3 py-2 rounded-xl bg-[#12121f] border border-white/10 text-sm text-gray-200 focus:outline-none focus:border-cyan-500/50"
@@ -183,7 +195,7 @@ export function DeadLettersInspector() {
           onChange={(e) => {
             const next = { ...filters, status: e.target.value || undefined };
             setFilters(next);
-            void fetchItems(1, next);
+            void fetchItems(1, next, pagination.pageSize);
           }}
           data-testid="dead-letters-status-filter"
           className="px-3 py-2 rounded-xl bg-[#12121f] border border-white/10 text-sm text-gray-200 focus:outline-none focus:border-cyan-500/50"
@@ -200,7 +212,7 @@ export function DeadLettersInspector() {
             const next = { ...filters, q: e.target.value || undefined };
             setFilters(next);
             if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-            searchTimerRef.current = setTimeout(() => void fetchItems(1, next), 400);
+            searchTimerRef.current = setTimeout(() => void fetchItems(1, next, pagination.pageSize), 400);
           }}
           placeholder="Search error or destination"
           data-testid="dead-letters-search"
@@ -305,7 +317,7 @@ export function DeadLettersInspector() {
             <button
               type="button"
               disabled={pagination.page <= 1}
-              onClick={() => void fetchItems(pagination.page - 1)}
+              onClick={() => void fetchItems(pagination.page - 1, filters, pagination.pageSize)}
               className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-40 cursor-pointer"
             >
               Previous
@@ -313,7 +325,7 @@ export function DeadLettersInspector() {
             <button
               type="button"
               disabled={pagination.page >= pagination.totalPages}
-              onClick={() => void fetchItems(pagination.page + 1)}
+              onClick={() => void fetchItems(pagination.page + 1, filters, pagination.pageSize)}
               className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-40 cursor-pointer"
             >
               Next

@@ -106,12 +106,18 @@ describe('did-auth client (#270)', () => {
     });
 
     it('signs the challenge through Freighter', async () => {
-      (window as any).freighterApi = { signMessage: vi.fn().mockResolvedValue('c2ln') };
+      (window as any).freighterApi = {
+        getPublicKey: vi.fn().mockResolvedValue(KEY),
+        signMessage: vi.fn().mockResolvedValue('c2ln'),
+      };
       await expect(signChallenge('challenge-1')).resolves.toBe('c2ln');
     });
 
     it('maps a cancelled signature to a typed error', async () => {
-      (window as any).freighterApi = { signMessage: vi.fn().mockRejectedValue(new Error('cancelled')) };
+      (window as any).freighterApi = {
+        getPublicKey: vi.fn().mockResolvedValue(KEY),
+        signMessage: vi.fn().mockRejectedValue(new Error('cancelled')),
+      };
       await expect(signChallenge('challenge-1')).rejects.toMatchObject({ code: 'SIGNATURE_REJECTED' });
     });
   });
