@@ -149,3 +149,18 @@ export type DexSwapEvent = Prisma.DexSwapEventModel
  * 
  */
 export type SecurityAuditLog = Prisma.SecurityAuditLogModel
+/**
+ * Model NotificationDeliveryAttempt
+ * 
+ */
+export type NotificationDeliveryAttempt = Prisma.NotificationDeliveryAttemptModel
+/**
+ * Model DeadLetter
+ * 
+ */
+export type DeadLetter = Prisma.DeadLetterModel
+/**
+ * Model DeadLetterAudit
+ * 
+ */
+export type DeadLetterAudit = Prisma.DeadLetterAuditModel

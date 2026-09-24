@@ -13,7 +13,7 @@ import { paymentsRoutes } from './modules/payments/payments.routes';
 import { webhooksRoutes } from './modules/webhooks/webhooks.routes';
 import { sorobanStateRoutes } from './modules/soroban-state/soroban-state.routes';
 import { notificationsRoutes } from './modules/notifications/notifications.routes';
-import { wasmAnalyzerRoutes } from './modules/wasm-analyzer/wasm-analyzer.routes';
+import { deadLettersRoutes } from './modules/dead-letters/dead-letters.routes';
 import { openApiOptions } from './openapi.config';
 
 export { openApiComponentSchemas, openApiOptions } from './openapi.config';
@@ -88,7 +88,7 @@ export const buildApp = async () => {
   app.register(paymentsRoutes);
   app.register(webhooksRoutes);
   app.register(notificationsRoutes);
-  app.register(wasmAnalyzerRoutes);
+  app.register(deadLettersRoutes);
 
   return app;
 };

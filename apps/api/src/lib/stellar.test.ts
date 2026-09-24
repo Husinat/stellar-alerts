@@ -159,6 +159,54 @@ describe('MultiNodeHorizonClient failover & deduplication', () => {
     expect(received.length).toBe(1);
     expect(received[0].id).toBe('dup-1');
   });
+
+  it('getPaymentsSinceResult reports allNodesFailed when every failover node errors (provider outage)', async () => {
+    const { MultiNodeHorizonClient } = await import('./stellar');
+    const client = new MultiNodeHorizonClient(['https://node1.example.com', 'https://node2.example.com']);
+
+    vi.spyOn(client.servers[0], 'payments').mockImplementation(() => {
+      throw new Error('Primary node network timeout');
+    });
+    vi.spyOn(client.servers[1], 'payments').mockImplementation(() => {
+      throw new Error('Secondary node network timeout');
+    });
+
+    const result = await client.getPaymentsSinceResult(validPublicKey, '0', 50);
+
+    expect(result).toEqual({ records: [], allNodesFailed: true, lastError: 'Secondary node network timeout' });
+  });
+
+  it('getPaymentsSinceResult reports allNodesFailed: false once any node succeeds', async () => {
+    const { MultiNodeHorizonClient } = await import('./stellar');
+    const client = new MultiNodeHorizonClient(['https://node1.example.com', 'https://node2.example.com']);
+
+    vi.spyOn(client.servers[0], 'payments').mockImplementation(() => {
+      throw new Error('Primary node network timeout');
+    });
+    const record = { id: 'multi-2', paging_token: '200' };
+    vi.spyOn(client.servers[1], 'payments').mockReturnValue({
+      forAccount: vi.fn().mockReturnThis(),
+      cursor: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      call: vi.fn().mockResolvedValue({ records: [record] }),
+    } as any);
+
+    const result = await client.getPaymentsSinceResult(validPublicKey, '0', 50);
+
+    expect(result).toEqual({ records: [record], allNodesFailed: false, lastError: null });
+  });
+
+  it('getPaymentsSinceResult never touches Horizon for a checksum-invalid public key', async () => {
+    const { MultiNodeHorizonClient } = await import('./stellar');
+    const client = new MultiNodeHorizonClient(['https://node1.example.com']);
+    const spy = vi.spyOn(client.servers[0], 'payments');
+
+    const result = await client.getPaymentsSinceResult('not-a-stellar-key', '0', 50);
+
+    expect(result).toEqual({ records: [], allNodesFailed: false, lastError: null });
+    expect(spy).not.toHaveBeenCalled();
+  });
 });
 
 describe('countMultisigSignatures', () => {

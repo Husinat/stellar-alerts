@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { authController } from './auth.controller';
 import { authenticateHook } from '../../middleware/auth.middleware';
-import { verifyTSSThreshold } from '../../utils/tss-verifier';
+import { verifyThresholdSignature } from '../../utils/tss-verifier';
 
 export async function authRoutes(app: FastifyInstance) {
   app.post('/auth/request-link', authController.requestMagicLink.bind(authController));

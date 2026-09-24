@@ -48,7 +48,11 @@ services:
     image: ghcr.io/shopify/toxiproxy:latest
     container_name: stellar_alerts_toxiproxy
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "8474:8474"
+      - "8666:8666"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   postgres_data:

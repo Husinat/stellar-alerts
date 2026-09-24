@@ -532,14 +532,6 @@ export type WebhookUncheckedUpdateManyWithoutUserNestedInput = {
   deleteMany?: Prisma.WebhookScalarWhereInput | Prisma.WebhookScalarWhereInput[]
 }
 
-export type IntFieldUpdateOperationsInput = {
-  set?: number
-  increment?: number
-  decrement?: number
-  multiply?: number
-  divide?: number
-}
-
 export type WebhookCreateNestedOneWithoutLogsInput = {
   create?: Prisma.XOR<Prisma.WebhookCreateWithoutLogsInput, Prisma.WebhookUncheckedCreateWithoutLogsInput>
   connectOrCreate?: Prisma.WebhookCreateOrConnectWithoutLogsInput

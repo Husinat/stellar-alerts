@@ -309,10 +309,28 @@ export class MultiNodeHorizonClient {
   }
 
   async getPaymentsSince(publicKey: string, cursor: string, limit = 50): Promise<any[]> {
+    const result = await this.getPaymentsSinceResult(publicKey, cursor, limit);
+    return result.records;
+  }
+
+  /**
+   * Same lookup as {@link getPaymentsSince}, but distinguishes "no new
+   * payments" (every node reached, none had anything new) from "provider
+   * outage" (every node in the failover list errored) — the caller needs
+   * that distinction to avoid silently treating an outage as "fully caught
+   * up" and to surface it for operator visibility (see lib/cursor-recovery.ts).
+   */
+  async getPaymentsSinceResult(
+    publicKey: string,
+    cursor: string,
+    limit = 50,
+  ): Promise<{ records: any[]; allNodesFailed: boolean; lastError: string | null }> {
     if (!publicKey || !StellarSdk.StrKey.isValidEd25519PublicKey(publicKey)) {
       console.warn(`[MultiNodeHorizon] Skipping invalid public key checksum: "${publicKey}"`);
-      return [];
+      return { records: [], allNodesFailed: false, lastError: null };
     }
+
+    let lastError: string | null = null;
 
     for (let i = 0; i < this.servers.length; i++) {
       const server = this.servers[i];
@@ -324,14 +342,15 @@ export class MultiNodeHorizonClient {
           .order('asc')
           .limit(limit)
           .call();
-        return payments.records;
+        return { records: payments.records, allNodesFailed: false, lastError: null };
       } catch (error: any) {
+        lastError = error?.message || String(error);
         console.warn(
-          `[MultiNodeHorizon] Horizon node ${this.endpoints[i]} failed: ${error?.message || error}. Trying fallback node...`,
+          `[MultiNodeHorizon] Horizon node ${this.endpoints[i]} failed: ${lastError}. Trying fallback node...`,
         );
       }
     }
-    return [];
+    return { records: [], allNodesFailed: true, lastError };
   }
 
   streamPaymentsMultiNode(
@@ -452,6 +471,12 @@ export const stellar = {
   // Fetch payments recorded after the given Horizon paging token, oldest first
   async getPaymentsSince(publicKey: string, cursor: string, limit: number = 50) {
     return multiNodeClient.getPaymentsSince(publicKey, cursor, limit);
+  },
+
+  // Same as getPaymentsSince, but reports whether every failover node
+  // errored (a provider outage) instead of masking it as "no new payments".
+  async getPaymentsSinceResult(publicKey: string, cursor: string, limit: number = 50) {
+    return multiNodeClient.getPaymentsSinceResult(publicKey, cursor, limit);
   },
 
   // Paging token of the most recent payment, used to seed a fresh cursor
