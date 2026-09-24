@@ -1,7 +1,12 @@
 import { Queue, QueueEvents, Job, Worker } from 'bullmq';
 import { Resend } from 'resend';
+import CircuitBreaker from 'opossum';
 import { prisma } from './prisma';
 import { createLogger } from './logger';
+import { adaptiveWebhookRateLimiter, waitForAdaptiveBackoff } from '../utils/rate-limiter';
+import { applyWebhookPayloadTemplate } from '../utils/payload-template';
+import { generateWebhookSignature } from '../utils/webhook-signer';
+import { decryptSecret, joinEncryptedSecretParts } from '../utils/crypto-vault';
 
 const queueLog = createLogger({ module: 'Queue' });
 
@@ -193,7 +198,8 @@ export async function dispatchWebhookAndLog(webhookId: string, payload: any, ret
     }
 
     const payloadString = templateResult.body;
-    const signature = generateWebhookSignature(payloadString, webhook.secret);
+    const secret = decryptSecret(joinEncryptedSecretParts(webhook));
+    const signature = generateWebhookSignature(payloadString, secret);
 
     const breaker = await getOrCreateCircuitBreaker(webhookId);
     const response = await breaker.fire(webhook.url, payloadString, {

@@ -16,8 +16,12 @@ import {
   NotificationModal,
   ActivityHeatmap,
   EmailTemplatePreview,
+  EmailTemplateConfig,
 } from '@/components/dashboard';
+import { CommandPalette } from '@/components/CommandPalette';
 import { useBatchReader } from '@/lib/hooks/useBatchReader';
+
+type AppSession = { accessToken?: string };
 
 export default function Home() {
   const { data: session } = useSession();
@@ -383,7 +387,7 @@ export default function Home() {
                   <div id="add-wallet-section" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                     {/* Watcher Form Card */}
                     <div className="lg:col-span-4 bg-[#0c0c14]/80 backdrop-blur-md rounded-3xl border border-white/10 p-7 shadow-2xl hover:border-cyan-500/30 transition-all duration-500">
-                      <WatcherForm onWalletAdded={() => { fetchWallets(); fetchPayments(); fetchSummary(); }} />
+                      <WatcherForm onWalletAdded={() => { fetchDashboardData(); }} />
                     </div>
 
                     {/* Modular Component 3: PaymentTable */}

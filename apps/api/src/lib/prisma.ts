@@ -13,7 +13,7 @@ function createClient(databaseUrl: string, label: string) {
 }
 
 const primaryUrl = env.DATABASE_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/stellar_alerts';
-const replicaUrl = env.DATABASE_REPLICA_URL || process.env.DATABASE_REPLICA_URL;
+const replicaUrl = env.READ_REPLICA_URL || process.env.READ_REPLICA_URL;
 
 export const prisma = createClient(primaryUrl, 'primary');
 
@@ -24,6 +24,8 @@ export const prisma = createClient(primaryUrl, 'primary');
  */
 export const prismaRead = replicaUrl ? createClient(replicaUrl, 'replica') : prisma;
 export const replicaPrisma = prismaRead;
+
+export type DatabaseTarget = 'PRIMARY' | 'REPLICA';
 
 export let activeReadTarget: DatabaseTarget = 'REPLICA';
 

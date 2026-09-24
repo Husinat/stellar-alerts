@@ -23,7 +23,7 @@ export const authOptions = {
     signIn: "/verify",
   },
   session: {
-    strategy: "jwt",
+    strategy: "jwt" as const,
   },
 };
 

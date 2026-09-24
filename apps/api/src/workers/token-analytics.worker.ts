@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { prisma } from '../lib/prisma';
 import {
   getActiveContractIds,
@@ -17,8 +17,7 @@ async function processMintBurn(parsed: ParsedSorobanMintBurn): Promise<void> {
   const { contractId, eventType, amount, from, to, ledgerSeq } = parsed;
   const amountDecimal = new Prisma.Decimal(amount);
   const ledger = ledgerSeq ?? 0;
-
-  let newEventId: string | null = null;
+  const alertRequired = amountDecimal.greaterThan(LARGE_OPERATION_THRESHOLD);
 
   await prisma.$transaction(async (tx) => {
     const existing = await tx.sacTokenSupply.findUnique({ where: { contractId } });
@@ -28,19 +27,17 @@ async function processMintBurn(parsed: ParsedSorobanMintBurn): Promise<void> {
         await tx.sacTokenSupply.update({
           where: { contractId },
           data: {
-            totalSupply: existing.totalSupply.plus(amountDecimal),
+            circulatingSupply: existing.circulatingSupply.plus(amountDecimal),
             totalMinted: existing.totalMinted.plus(amountDecimal),
-            lastLedger: ledger,
           },
         });
       } else {
-        const newSupply = existing.totalSupply.minus(amountDecimal);
+        const newSupply = existing.circulatingSupply.minus(amountDecimal);
         await tx.sacTokenSupply.update({
           where: { contractId },
           data: {
-            totalSupply: newSupply.lessThan(0) ? new Prisma.Decimal(0) : newSupply,
+            circulatingSupply: newSupply.lessThan(0) ? new Prisma.Decimal(0) : newSupply,
             totalBurned: existing.totalBurned.plus(amountDecimal),
-            lastLedger: ledger,
           },
         });
       }
@@ -48,47 +45,39 @@ async function processMintBurn(parsed: ParsedSorobanMintBurn): Promise<void> {
       await tx.sacTokenSupply.create({
         data: {
           contractId,
-          totalSupply: eventType === 'MINT' ? amountDecimal : new Prisma.Decimal(0),
+          circulatingSupply: eventType === 'MINT' ? amountDecimal : new Prisma.Decimal(0),
           totalMinted: eventType === 'MINT' ? amountDecimal : new Prisma.Decimal(0),
           totalBurned: eventType === 'BURN' ? amountDecimal : new Prisma.Decimal(0),
-          lastLedger: ledger,
         },
       });
     }
 
-    const alertRequired = amountDecimal.greaterThan(LARGE_OPERATION_THRESHOLD);
-    const eventRecord = await tx.sacMintBurnEvent.create({
+    await tx.sacTokenMintBurnEvent.create({
       data: {
         contractId,
         eventType,
         amount: amountDecimal,
-        fromAddress: from || null,
-        toAddress: to || null,
+        from: from || null,
+        to: to || null,
         ledgerSeq: ledger,
-        alertRequired,
       },
     });
-    if (alertRequired) {
-      newEventId = eventRecord.id;
-    }
   });
 
-  if (newEventId) {
+  if (alertRequired) {
     console.warn(`[TokenAnalytics] 📈 Large ${eventType} on ${contractId}: ${amount} units (ledger ${ledger})`);
-    await prisma.sacMintBurnEvent.update({
-      where: { id: newEventId },
-      data: { alertDispatched: true },
-    });
   }
 }
 
 async function processContract(contractId: string): Promise<void> {
-  const supply = await prisma.sacTokenSupply.findUnique({ where: { contractId } });
-  const startLedger = (supply?.lastLedger ?? 0) + 1;
+  const lastEvent = await prisma.sacTokenMintBurnEvent.findFirst({
+    where: { contractId },
+    orderBy: { ledgerSeq: 'desc' },
+    select: { ledgerSeq: true },
+  });
+  const startLedger = (lastEvent?.ledgerSeq ?? 0) + 1;
   const latestLedger = await getSorobanLatestLedger();
   if (startLedger > latestLedger) return;
-
-  let lastProcessedLedger = startLedger - 1;
 
   for await (const batch of fetchContractEventsInRange(contractId, startLedger, latestLedger)) {
     for (const event of batch) {
@@ -96,24 +85,7 @@ async function processContract(contractId: string): Promise<void> {
       if (parsed && parsed.ledgerSeq) {
         await processMintBurn(parsed);
       }
-      const eventLedger = event.ledger || parsed?.ledgerSeq || 0;
-      if (eventLedger > lastProcessedLedger) {
-        lastProcessedLedger = eventLedger;
-      }
     }
-  }
-
-  if (lastProcessedLedger < startLedger) {
-    // No events in the range, advance cursor to latest ledger
-    lastProcessedLedger = latestLedger;
-  }
-
-  if (lastProcessedLedger > (supply?.lastLedger ?? 0)) {
-    await prisma.sacTokenSupply.upsert({
-      where: { contractId },
-      create: { contractId, lastLedger: lastProcessedLedger },
-      update: { lastLedger: lastProcessedLedger },
-    });
   }
 }
 
