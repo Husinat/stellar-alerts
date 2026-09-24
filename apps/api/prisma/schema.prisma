@@ -42,6 +42,14 @@ model IngestionCursor {
   pagingToken  String
   lastSyncedAt DateTime @default(now()) @updatedAt
   createdAt    DateTime @default(now())
+
+  // Operator-visible ingestion health (see lib/cursor-recovery.ts).
+  status               String    @default("active") // 'active' | 'gap_detected'
+  consecutiveFailures  Int       @default(0)
+  lastError            String?
+  lastSuccessAt        DateTime?
+  gapDetectedAt        DateTime?
+  lastGapLedgerDelta    Int?
 }
 
 model Payment {
