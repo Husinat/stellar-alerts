@@ -9,6 +9,8 @@ import { prisma } from './prisma';
 import { createLogger } from './logger';
 import { deliverWithIdempotency } from './delivery';
 import { persistDeadLetter } from './dead-letter';
+import { validateUrlForSsrf } from '../utils/ssrf';
+import { decryptPersonalField } from '../utils/privacy';
 
 function decryptWebhookSecret(webhook: {
   keyVersion: number;
@@ -168,6 +170,20 @@ export async function dispatchWebhookAndLog(webhookId: string, payload: any, ret
     }
 
     targetUrl = webhook.url;
+
+    // Validate webhook URL against SSRF rules (#312)
+    try {
+      await validateUrlForSsrf(webhook.url);
+    } catch (ssrfErr: any) {
+      console.error(`[WebhookDispatch] SSRF validation blocked delivery to ${webhook.url}: ${ssrfErr.message}`);
+      await prisma.webhookLog.create({
+        data: {
+          webhookId,
+          error: `SSRF blocked: ${ssrfErr.message}`,
+        },
+      });
+      return;
+    }
 
     // Check circuit breaker state
     if (webhook.circuitBreaker?.state === "open") {
@@ -524,7 +540,8 @@ export async function processAlertDispatch(data: AlertJobData) {
 
   // Dispatch Telegram alert if configured
   if (wallet?.user?.notifyPrefs?.telegramEnabled && wallet.user.notifyPrefs.telegramChatId) {
-    const chatId = wallet.user.notifyPrefs.telegramChatId;
+    const rawChatId = wallet.user.notifyPrefs.telegramChatId;
+    const chatId = decryptPersonalField(rawChatId) || rawChatId;
     await deliverWithIdempotency(
       {
         paymentId: data.paymentId,
