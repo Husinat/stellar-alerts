@@ -72,7 +72,10 @@ export function buildActivityHeatmapData(
 }
 
 function formatDate(date: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+  // Hardcode 'en-US' rather than the runtime's default locale so labels
+  // (and the accessible names built from them) are deterministic across
+  // machines/CI runners instead of depending on system locale/ICU data.
+  return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',

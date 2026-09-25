@@ -33,6 +33,24 @@ const envSchema = z.object({
   SOROBAN_SAC_WORKER_ENABLED: z.string().optional().default("true"),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional().default("http://localhost:4318/v1/traces"),
   OTEL_SERVICE_NAME: z.string().optional().default("stellar-alerts-api"),
+  // Provider timeouts & deadlines (#303)
+  EXTERNAL_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().optional().default(10000),
+  HORIZON_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().optional().default(10000),
+  SOROBAN_RPC_TIMEOUT_MS: z.coerce.number().int().positive().optional().default(15000),
+  NOTIFICATION_PROVIDER_TIMEOUT_MS: z.coerce.number().int().positive().optional().default(8000),
+  WEBHOOK_TIMEOUT_MS: z.coerce.number().int().positive().optional().default(10000),
+  // Worker concurrency and fairness rate budgets (#309)
+  ALERT_WORKER_CONCURRENCY: z.coerce.number().int().positive().optional().default(5),
+  WATCHER_WALLET_CONCURRENCY: z.coerce.number().int().positive().optional().default(5),
+  PROVIDER_RATE_BUDGET_TELEGRAM: z.coerce.number().int().positive().optional().default(30),
+  PROVIDER_RATE_BUDGET_DISCORD: z.coerce.number().int().positive().optional().default(30),
+  PROVIDER_RATE_BUDGET_SLACK: z.coerce.number().int().positive().optional().default(20),
+  PROVIDER_RATE_BUDGET_WEBHOOK: z.coerce.number().int().positive().optional().default(50),
+  PROVIDER_RATE_BUDGET_EMAIL: z.coerce.number().int().positive().optional().default(10),
+  WALLET_BURST_ALLOWANCE: z.coerce.number().int().positive().optional().default(20),
+  // Wasm contract upload/analysis limits for the wasm-analyzer module.
+  WASM_ANALYZER_MAX_UPLOAD_BYTES: z.coerce.number().int().positive().optional().default(5 * 1024 * 1024),
+  WASM_ANALYZER_TIMEOUT_MS: z.coerce.number().int().positive().optional().default(5000),
 });
 export type Env = z.infer<typeof envSchema>;
 

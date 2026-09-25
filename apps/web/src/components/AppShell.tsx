@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { CommandPalette } from '@/components/CommandPalette';
 import { NotificationModal } from '@/components/dashboard';
+import { OnboardingWizard } from '@/components/onboarding';
+import { WalletAdapter } from '@/lib/adapters/wallet.adapter';
+import { NotificationsAdapter } from '@/lib/adapters/notifications.adapter';
+import { useBatchReader } from '@/lib/hooks/useBatchReader';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 
@@ -24,8 +28,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   const getHeaders = useSessionHeaders();
+  const batchReader = useBatchReader();
 
   const handleSavePreferences = async (prefs: { telegramChatId?: string; emailEnabled: boolean }) => {
     try {
@@ -37,6 +43,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('Failed to save notification preferences:', err);
     }
+  };
+
+  // Adapters for the onboarding wizard: each step throws on failure so the
+  // wizard can show an inline, retryable error instead of silently advancing.
+  const walletAdapter = useMemo(
+    () => new WalletAdapter({ baseUrl: API_BASE_URL, getAuthHeaders: getHeaders }),
+    [getHeaders],
+  );
+  const notificationsAdapter = useMemo(
+    () => new NotificationsAdapter({ baseUrl: API_BASE_URL, getAuthHeaders: getHeaders }),
+    [getHeaders],
+  );
+
+  const handleOnboardingConnectWallet = async (publicKey: string) => {
+    await walletAdapter.createWallet({ publicKey, label: 'Watched Wallet' });
+    batchReader.invalidateAll();
+  };
+
+  const handleOnboardingLinkTelegram = async (chatId: string) => {
+    await notificationsAdapter.updatePreferences({ telegramChatId: chatId, telegramEnabled: true });
+  };
+
+  const handleOnboardingTestPing = async () => {
+    return notificationsAdapter.sendTestPing('telegram');
+  };
+
+  const handleOnboardingSavePreferences = async (prefs: { emailEnabled: boolean; telegramEnabled: boolean }) => {
+    await notificationsAdapter.updatePreferences(prefs);
+  };
+
+  const handleOnboardingActivate = () => {
+    batchReader.invalidateAll();
   };
 
   return (
@@ -99,6 +137,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <span className="text-sm leading-none">🔔</span> Alert Settings
             </button>
+            <button
+              onClick={() => setIsOnboardingOpen(true)}
+              className="px-4 py-2 rounded-full bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-xs font-semibold text-purple-200 flex items-center gap-2 transition-colors cursor-pointer"
+            >
+              <span>🚀</span> Get Started
+            </button>
             <div className="hidden sm:flex flex-col items-end">
               <p className="font-semibold text-sm text-gray-200">{session?.user?.name || 'Explorer'}</p>
               <p className="text-xs text-cyan-400/80 font-mono">{session?.user?.email}</p>
@@ -122,6 +166,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onClose={() => setIsNotificationModalOpen(false)}
         onSavePreferences={handleSavePreferences}
       />
+
+      {/* Three-step onboarding wizard: wallet connection → Telegram linking → notification preferences */}
+      {isOnboardingOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <OnboardingWizard
+            isOpen={isOnboardingOpen}
+            onClose={() => setIsOnboardingOpen(false)}
+            onConnectWallet={handleOnboardingConnectWallet}
+            onLinkTelegram={handleOnboardingLinkTelegram}
+            onSendTestPing={handleOnboardingTestPing}
+            onSavePreferences={handleOnboardingSavePreferences}
+            onActivate={handleOnboardingActivate}
+          />
+        </div>
+      )}
 
       <CommandPalette
         open={isCommandPaletteOpen}

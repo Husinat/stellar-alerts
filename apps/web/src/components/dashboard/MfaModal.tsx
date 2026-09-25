@@ -45,7 +45,7 @@ export const MfaModal: React.FC<MfaModalProps> = ({ isOpen, onClose }) => {
   // Check MFA status on mount
   useEffect(() => {
     if (isOpen) {
-      checkMFAStatus();
+      void checkMFAStatus();
     }
   }, [isOpen]);
 
@@ -68,6 +68,7 @@ export const MfaModal: React.FC<MfaModalProps> = ({ isOpen, onClose }) => {
       }
     } catch (error) {
       setMessage({ type: 'error', text: 'Network error. Please try again.' });
+      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -103,6 +104,7 @@ export const MfaModal: React.FC<MfaModalProps> = ({ isOpen, onClose }) => {
       }
     } catch (error) {
       setMessage({ type: 'error', text: 'Network error. Please try again.' });
+      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -136,6 +138,7 @@ export const MfaModal: React.FC<MfaModalProps> = ({ isOpen, onClose }) => {
       }
     } catch (error) {
       setMessage({ type: 'error', text: 'Network error. Please try again.' });
+      console.error(error);
     } finally {
       setIsLoading(false);
     }
