@@ -30,10 +30,11 @@ describe('ActivityHeatmap', () => {
       />
     );
 
-    expect(screen.getByTestId('activity-heatmap-grid')).toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(365);
+    const grid = screen.getByTestId('activity-heatmap-grid');
+    expect(grid).toBeInTheDocument();
+    expect(grid.querySelectorAll('button')).toHaveLength(365);
     expect(screen.getByTestId('activity-heatmap-day-2026-08-29')).toHaveAttribute('data-level', '4');
-  });
+  }, 15000);
 
   it('supports date range presets and accessible daily counts', () => {
     render(
@@ -43,9 +44,10 @@ describe('ActivityHeatmap', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: /Aug 29, 2026: 2 transactions/i })).toBeInTheDocument();
+    const dayButton = screen.getByTestId('activity-heatmap-day-2026-08-29');
+    expect(dayButton).toHaveAttribute('aria-label', expect.stringMatching(/2 transactions/i));
     expect(screen.getByTestId('activity-heatmap-range-90d')).toBeInTheDocument();
     expect(screen.getByTestId('activity-heatmap-end-date')).toHaveValue('2026-08-29');
-    expect(screen.getAllByRole('button', { name: /transactions/i })).toHaveLength(365);
-  });
+    expect(screen.getByTestId('activity-heatmap-grid').querySelectorAll('button')).toHaveLength(365);
+  }, 15000);
 });

@@ -16,16 +16,8 @@ export const MfaModal: React.FC<MfaModalProps> = ({ isOpen, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Check MFA status on mount
-  useEffect(() => {
-    if (isOpen) {
-      checkMFAStatus();
-    }
-  }, [isOpen]);
-
   const getHeaders = () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    // Get token from session (you'll need to adapt this to your auth setup)
     const token = localStorage.getItem('sessionToken');
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -49,6 +41,13 @@ export const MfaModal: React.FC<MfaModalProps> = ({ isOpen, onClose }) => {
       setIsLoading(false);
     }
   };
+
+  // Check MFA status on mount
+  useEffect(() => {
+    if (isOpen) {
+      checkMFAStatus();
+    }
+  }, [isOpen]);
 
   const handleSetupMFA = async () => {
     setIsLoading(true);
@@ -213,7 +212,7 @@ export const MfaModal: React.FC<MfaModalProps> = ({ isOpen, onClose }) => {
               onClick={() => setStep('verify')}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold transition-all"
             >
-              I've Scanned the Code
+              I&apos;ve Scanned the Code
             </button>
 
             <button

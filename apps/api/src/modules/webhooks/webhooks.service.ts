@@ -2,8 +2,7 @@ import crypto from 'crypto';
 
 import { prisma } from '../../lib/prisma';
 import { KeyRotationManager } from '../../utils/key-rotation-manager';
-import { cryptoVault, joinEncryptedSecretParts, splitEncryptedSecret } from '../../utils/crypto-vault';
-import { validateUrlForSsrf, ssrfSafeFetch } from '../../utils/ssrf';
+import { cryptoVault } from '../../utils/crypto-vault';
 
 export interface WebhookTestResult {
   success: boolean;
@@ -72,16 +71,16 @@ export class WebhooksService {
 
     const secret = crypto.randomBytes(32).toString('hex');
     const encryptedSecret = cryptoVault.encrypt(secret);
-    const { secretCiphertext, secretIv, secretAuthTag, keyVersion } = splitEncryptedSecret(encryptedSecret);
+    const [version, iv, authTag, ciphertext] = encryptedSecret.split(':');
 
     const webhook = await prisma.webhook.create({
       data: {
         userId,
         url,
-        secretCiphertext,
-        secretIv,
-        secretAuthTag,
-        keyVersion,
+        secretCiphertext: ciphertext,
+        secretIv: iv,
+        secretAuthTag: authTag,
+        keyVersion: parseInt(version, 10),
         payloadTemplate,
       },
       select: {
@@ -169,7 +168,13 @@ export class WebhooksService {
       throw new Error('Webhook not found');
     }
 
-    const secret = cryptoVault.decrypt(joinEncryptedSecretParts(webhook));
+    const encrypted = [
+      String(webhook.keyVersion),
+      webhook.secretIv,
+      webhook.secretAuthTag,
+      webhook.secretCiphertext,
+    ].join(':');
+    const secret = cryptoVault.decrypt(encrypted);
 
     const payload = JSON.stringify({
       event: 'webhook.ping',

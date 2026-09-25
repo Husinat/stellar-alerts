@@ -143,6 +143,11 @@ export type DexSwapEvent = Prisma.DexSwapEventModel
  */
 export type SecurityAuditLog = Prisma.SecurityAuditLogModel
 /**
+ * Model NotificationDelivery
+ * 
+ */
+export type NotificationDelivery = Prisma.NotificationDeliveryModel
+/**
  * Model NotificationDeliveryAttempt
  * 
  */

@@ -22,6 +22,7 @@ model User {
   dexSwapWatches        DexSwapWatch[]
   alertRules            AlertRule[]
   deliveryAttempts NotificationDeliveryAttempt[]
+  deliveries       NotificationDelivery[]
   deadLetters        DeadLetter[]
   mfaRecoveryCodes   MfaRecoveryCode[]
 }
@@ -68,6 +69,7 @@ model Payment {
   receivedAt  DateTime
   createdAt   DateTime @default(now())
   deliveryAttempts NotificationDeliveryAttempt[]
+  deliveries       NotificationDelivery[]
   deadLetters       DeadLetter[]
 
   @@index([txHash])
@@ -451,25 +453,64 @@ model SecurityAuditLog {
 //   failed    → provider request errored (retryable)
 //   skipped   → suppressed by a concurrent duplicate or an idempotency hit
 //
-// Idempotency rule: a delivery is NEVER dispatched twice while an earlier
-// attempt for the same `deliveryKey` is in `delivered` state.
+// ── Logical Notification Delivery & Identity (#306) ─────────────────────────
+//
+// Represents the singular logical delivery identity for a payment notification
+// across a distinct channel and destination. Enforces uniqueness across
+// (paymentId, channel, destination) and on the canonical deliveryKey.
+// Tracks lifecycle transitions and terminal states (delivered, exhausted, suppressed, skipped).
+model NotificationDelivery {
+  id              String                       @id @default(cuid())
+  deliveryKey     String                       @unique
+  paymentId       String
+  payment         Payment                      @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  channel         String
+  destination     String
+  userId          String?
+  user            User?                        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  status          String                       @default("pending") // pending | in_progress | delivered | failed | exhausted | suppressed | skipped
+  currentAttempt  Int                          @default(0)
+  maxAttempts     Int                          @default(5)
+  lastError       String?
+  deliveredAt     DateTime?
+  terminalAt      DateTime?
+  attempts        NotificationDeliveryAttempt[]
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+
+  @@unique([paymentId, channel, destination])
+  @@index([status])
+  @@index([channel])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ── Delivery idempotency & attempts (#272, #306) ─────────────────────────────
+//
+// One row is written for every attempted delivery dispatch.
+// Uniqueness rule: @@unique([deliveryKey, attempt]) prevents double-recording
+// of the same attempt sequence number for any deliveryKey.
 model NotificationDeliveryAttempt {
-  id                String   @id @default(cuid())
+  id                String                @id @default(cuid())
   deliveryKey       String
+  deliveryId        String?
+  delivery          NotificationDelivery? @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
   paymentId         String?
-  payment           Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  payment           Payment?              @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   channel           String
   destination       String?
   providerRequestId String?
-  status            String   @default("pending") // pending | delivered | failed | skipped | suppressed
-  attempt           Int      @default(1)
+  status            String                @default("pending") // pending | in_progress | delivered | failed | skipped | suppressed
+  attempt           Int                   @default(1)
   error             String?
   userId            String?
-  user              User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  user              User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
 
+  @@unique([deliveryKey, attempt])
   @@index([deliveryKey])
+  @@index([deliveryId])
   @@index([channel])
   @@index([status])
   @@index([paymentId])
