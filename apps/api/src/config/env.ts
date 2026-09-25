@@ -64,14 +64,41 @@ const parseEnv = (): Env => {
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "http://localhost:4318/v1/traces",
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME || "stellar-alerts-api",
   };
+
+  const isProd = process.env.NODE_ENV === 'production';
+  const isTest = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
+
+  // In production, reject known placeholder / insecure secrets fail-fast
+  if (isProd) {
+    const insecureKeys: string[] = [];
+    const insecureDefaults = [
+      'dummy-jwt-secret-key-12345',
+      '0123456789abcdef0123456789abcdef',
+      'dummy-telegram-bot-token',
+    ];
+    for (const [k, v] of Object.entries(envInput)) {
+      if (typeof v === 'string' && insecureDefaults.includes(v)) {
+        insecureKeys.push(k);
+      }
+    }
+    if (insecureKeys.length > 0) {
+      const msg = `[Config] ❌ FATAL: Insecure default credentials detected in production: ${insecureKeys.join(', ')}. Server cannot start with placeholder secrets.`;
+      console.error(msg);
+      if (!isTest) {
+        process.exit(1);
+      }
+      throw new Error(msg);
+    }
+  }
+
   const parsed = envSchema.safeParse(envInput);
 
   if (!parsed.success) {
     console.error("❌ Invalid environment variables:", parsed.error.format());
-    if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+    if (isProd || (!isTest && process.env.NODE_ENV !== 'development')) {
       process.exit(1);
     }
-    // Return a typed fallback matching Env so downstream code has consistent shape
+    // Return a typed fallback matching Env so downstream code has consistent shape in dev/test
     return {
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/stellar_alerts",
       TELEGRAM_BOT_TOKEN: "dummy-telegram-bot-token",

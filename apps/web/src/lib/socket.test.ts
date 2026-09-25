@@ -145,7 +145,7 @@ describe('StellarAlertsSocket Client', () => {
 
   it('should subscribe to wallet updates', async () => {
     const socket = new StellarAlertsSocket('ws://localhost:3001/ws');
-    
+
     await new Promise<void>((resolve) => {
       socket.on('connection', () => {
         socket.subscribe('wallet123');
@@ -153,6 +153,52 @@ describe('StellarAlertsSocket Client', () => {
       });
       socket.connect();
     });
+  });
+
+  it('should append the session token as a query param on the handshake URL', async () => {
+    const socket = new StellarAlertsSocket('ws://localhost:3001/ws');
+    socket.connect('jwt-abc-123');
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+
+    const ws = (socket as any).ws as MockWebSocket;
+    expect(ws.url).toBe('ws://localhost:3001/ws?token=jwt-abc-123');
+  });
+
+  it('reuses the previously supplied token on reconnect without a new argument', async () => {
+    const socket = new StellarAlertsSocket('ws://localhost:3001/ws');
+    socket.connect('jwt-abc-123');
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+
+    socket.disconnect();
+    socket.connect();
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+
+    const ws = (socket as any).ws as MockWebSocket;
+    expect(ws.url).toBe('ws://localhost:3001/ws?token=jwt-abc-123');
+  });
+
+  it('routes incoming delivery messages to onDelivery handlers', async () => {
+    const socket = new StellarAlertsSocket('ws://localhost:3001/ws');
+    const deliveryHandler = vi.fn();
+    socket.onDelivery(deliveryHandler);
+
+    await new Promise<void>((resolve) => {
+      socket.on('connection', () => {
+        const ws = (socket as any).ws as MockWebSocket;
+        ws.simulateMessage({
+          type: 'delivery',
+          payload: { id: 'log_1', webhookId: 'wh_1', statusCode: 200, sentAt: new Date().toISOString() },
+          timestamp: new Date().toISOString(),
+        });
+        resolve();
+      });
+      socket.connect();
+    });
+
+    expect(deliveryHandler).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'log_1', statusCode: 200 })
+    );
   });
 });
 

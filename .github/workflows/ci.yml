@@ -119,33 +119,33 @@ jobs:
       - name: Build Shared Package (@stellar-alerts/shared)
         run: npx tsc -p packages/shared/tsconfig.json
 
-      # docker-compose.yml runs toxiproxy with network_mode: host, which is
-      # Linux-only — exactly what ubuntu-latest runners are, so this needs
-      # no extra host-gateway wiring (the chaos suite's own fixture server
-      # binds to 127.0.0.1, directly reachable from the toxoproxy container).
-      - name: Start Toxoproxy
-        run: docker compose up -d toxoproxy
+      # docker-compose.yml port-maps toxiproxy and points it at the host via
+      # host.docker.internal (an extra_hosts host-gateway entry), since the
+      # chaos suite's fixture server binds to localhost on the runner, not
+      # inside the toxiproxy container.
+      - name: Start Toxiproxy
+        run: docker compose up -d toxiproxy
 
-      - name: Wait for Toxoproxy to be ready
+      - name: Wait for Toxiproxy to be ready
         run: |
           for i in $(seq 1 1 30); do
             if curl -sf http://localhost:8474/version > /dev/null; then
-              echo "Toxoproxy is up"
+              echo "Toxiproxy is up"
               exit 0
             fi
             sleep 1
           done
-          echo "Toxoproxy did not become ready in time" >&2
-          docker compose logs toxoproxy
+          echo "Toxiproxy did not become ready in time" >&2
+          docker compose logs toxiproxy
           exit 1
 
       - name: Run Chaos Test Suite
         working-directory: apps/api
         run: npx vitest run src/__tests__/chaos.test.ts
         env:
-          TOXOPROXY_URL: http://localhost:8474
+          TOXIPROXY_URL: http://localhost:8474
           TOXIPROXY_UPSTREAM_HOST: host.docker.internal
 
-      - name: Stop Toxoproxy
+      - name: Stop Toxiproxy
         if: always()
-        run: docker compose down toxoproxy || true
+        run: docker compose down toxiproxy || true

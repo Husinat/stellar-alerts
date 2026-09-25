@@ -402,6 +402,9 @@ export const ModelName = {
   IngestionCursor: 'IngestionCursor',
   Payment: 'Payment',
   NotificationPreference: 'NotificationPreference',
+  AlertRule: 'AlertRule',
+  AlertRuleDispatchLog: 'AlertRuleDispatchLog',
+  WhatsAppDeliveryLog: 'WhatsAppDeliveryLog',
   Webhook: 'Webhook',
   WebhookLog: 'WebhookLog',
   WebhookCircuitBreaker: 'WebhookCircuitBreaker',
@@ -422,7 +425,8 @@ export const ModelName = {
   NotificationDelivery: 'NotificationDelivery',
   NotificationDeliveryAttempt: 'NotificationDeliveryAttempt',
   DeadLetter: 'DeadLetter',
-  DeadLetterAudit: 'DeadLetterAudit'
+  DeadLetterAudit: 'DeadLetterAudit',
+  MfaRecoveryCode: 'MfaRecoveryCode'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -809,6 +813,228 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.NotificationPreferenceCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.NotificationPreferenceCountAggregateOutputType> | number
+        }
+      }
+    }
+    AlertRule: {
+      payload: Prisma.$AlertRulePayload<ExtArgs>
+      fields: Prisma.AlertRuleFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AlertRuleFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRulePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AlertRuleFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRulePayload>
+        }
+        findFirst: {
+          args: Prisma.AlertRuleFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRulePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AlertRuleFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRulePayload>
+        }
+        findMany: {
+          args: Prisma.AlertRuleFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRulePayload>[]
+        }
+        create: {
+          args: Prisma.AlertRuleCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRulePayload>
+        }
+        createMany: {
+          args: Prisma.AlertRuleCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AlertRuleCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRulePayload>[]
+        }
+        delete: {
+          args: Prisma.AlertRuleDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRulePayload>
+        }
+        update: {
+          args: Prisma.AlertRuleUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRulePayload>
+        }
+        deleteMany: {
+          args: Prisma.AlertRuleDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AlertRuleUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AlertRuleUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRulePayload>[]
+        }
+        upsert: {
+          args: Prisma.AlertRuleUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRulePayload>
+        }
+        aggregate: {
+          args: Prisma.AlertRuleAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAlertRule>
+        }
+        groupBy: {
+          args: Prisma.AlertRuleGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AlertRuleGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AlertRuleCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AlertRuleCountAggregateOutputType> | number
+        }
+      }
+    }
+    AlertRuleDispatchLog: {
+      payload: Prisma.$AlertRuleDispatchLogPayload<ExtArgs>
+      fields: Prisma.AlertRuleDispatchLogFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AlertRuleDispatchLogFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRuleDispatchLogPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AlertRuleDispatchLogFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRuleDispatchLogPayload>
+        }
+        findFirst: {
+          args: Prisma.AlertRuleDispatchLogFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRuleDispatchLogPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AlertRuleDispatchLogFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRuleDispatchLogPayload>
+        }
+        findMany: {
+          args: Prisma.AlertRuleDispatchLogFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRuleDispatchLogPayload>[]
+        }
+        create: {
+          args: Prisma.AlertRuleDispatchLogCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRuleDispatchLogPayload>
+        }
+        createMany: {
+          args: Prisma.AlertRuleDispatchLogCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AlertRuleDispatchLogCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRuleDispatchLogPayload>[]
+        }
+        delete: {
+          args: Prisma.AlertRuleDispatchLogDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRuleDispatchLogPayload>
+        }
+        update: {
+          args: Prisma.AlertRuleDispatchLogUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRuleDispatchLogPayload>
+        }
+        deleteMany: {
+          args: Prisma.AlertRuleDispatchLogDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AlertRuleDispatchLogUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AlertRuleDispatchLogUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRuleDispatchLogPayload>[]
+        }
+        upsert: {
+          args: Prisma.AlertRuleDispatchLogUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AlertRuleDispatchLogPayload>
+        }
+        aggregate: {
+          args: Prisma.AlertRuleDispatchLogAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAlertRuleDispatchLog>
+        }
+        groupBy: {
+          args: Prisma.AlertRuleDispatchLogGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AlertRuleDispatchLogGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AlertRuleDispatchLogCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AlertRuleDispatchLogCountAggregateOutputType> | number
+        }
+      }
+    }
+    WhatsAppDeliveryLog: {
+      payload: Prisma.$WhatsAppDeliveryLogPayload<ExtArgs>
+      fields: Prisma.WhatsAppDeliveryLogFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.WhatsAppDeliveryLogFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.WhatsAppDeliveryLogFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>
+        }
+        findFirst: {
+          args: Prisma.WhatsAppDeliveryLogFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.WhatsAppDeliveryLogFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>
+        }
+        findMany: {
+          args: Prisma.WhatsAppDeliveryLogFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>[]
+        }
+        create: {
+          args: Prisma.WhatsAppDeliveryLogCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>
+        }
+        createMany: {
+          args: Prisma.WhatsAppDeliveryLogCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.WhatsAppDeliveryLogCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>[]
+        }
+        delete: {
+          args: Prisma.WhatsAppDeliveryLogDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>
+        }
+        update: {
+          args: Prisma.WhatsAppDeliveryLogUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>
+        }
+        deleteMany: {
+          args: Prisma.WhatsAppDeliveryLogDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.WhatsAppDeliveryLogUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.WhatsAppDeliveryLogUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>[]
+        }
+        upsert: {
+          args: Prisma.WhatsAppDeliveryLogUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>
+        }
+        aggregate: {
+          args: Prisma.WhatsAppDeliveryLogAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateWhatsAppDeliveryLog>
+        }
+        groupBy: {
+          args: Prisma.WhatsAppDeliveryLogGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.WhatsAppDeliveryLogGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.WhatsAppDeliveryLogCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.WhatsAppDeliveryLogCountAggregateOutputType> | number
         }
       }
     }
@@ -2366,6 +2592,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    MfaRecoveryCode: {
+      payload: Prisma.$MfaRecoveryCodePayload<ExtArgs>
+      fields: Prisma.MfaRecoveryCodeFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.MfaRecoveryCodeFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.MfaRecoveryCodeFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>
+        }
+        findFirst: {
+          args: Prisma.MfaRecoveryCodeFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.MfaRecoveryCodeFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>
+        }
+        findMany: {
+          args: Prisma.MfaRecoveryCodeFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>[]
+        }
+        create: {
+          args: Prisma.MfaRecoveryCodeCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>
+        }
+        createMany: {
+          args: Prisma.MfaRecoveryCodeCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.MfaRecoveryCodeCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>[]
+        }
+        delete: {
+          args: Prisma.MfaRecoveryCodeDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>
+        }
+        update: {
+          args: Prisma.MfaRecoveryCodeUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>
+        }
+        deleteMany: {
+          args: Prisma.MfaRecoveryCodeDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.MfaRecoveryCodeUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.MfaRecoveryCodeUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>[]
+        }
+        upsert: {
+          args: Prisma.MfaRecoveryCodeUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>
+        }
+        aggregate: {
+          args: Prisma.MfaRecoveryCodeAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateMfaRecoveryCode>
+        }
+        groupBy: {
+          args: Prisma.MfaRecoveryCodeGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MfaRecoveryCodeGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.MfaRecoveryCodeCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MfaRecoveryCodeCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -2473,6 +2773,47 @@ export const NotificationPreferenceScalarFieldEnum = {
 } as const
 
 export type NotificationPreferenceScalarFieldEnum = (typeof NotificationPreferenceScalarFieldEnum)[keyof typeof NotificationPreferenceScalarFieldEnum]
+
+
+export const AlertRuleScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  walletId: 'walletId',
+  name: 'name',
+  assets: 'assets',
+  minAmount: 'minAmount',
+  conditions: 'conditions',
+  isActive: 'isActive',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AlertRuleScalarFieldEnum = (typeof AlertRuleScalarFieldEnum)[keyof typeof AlertRuleScalarFieldEnum]
+
+
+export const AlertRuleDispatchLogScalarFieldEnum = {
+  id: 'id',
+  paymentId: 'paymentId',
+  matchedRuleIds: 'matchedRuleIds',
+  createdAt: 'createdAt'
+} as const
+
+export type AlertRuleDispatchLogScalarFieldEnum = (typeof AlertRuleDispatchLogScalarFieldEnum)[keyof typeof AlertRuleDispatchLogScalarFieldEnum]
+
+
+export const WhatsAppDeliveryLogScalarFieldEnum = {
+  id: 'id',
+  paymentId: 'paymentId',
+  toNumber: 'toNumber',
+  success: 'success',
+  messageSid: 'messageSid',
+  status: 'status',
+  error: 'error',
+  attempts: 'attempts',
+  sentAt: 'sentAt'
+} as const
+
+export type WhatsAppDeliveryLogScalarFieldEnum = (typeof WhatsAppDeliveryLogScalarFieldEnum)[keyof typeof WhatsAppDeliveryLogScalarFieldEnum]
 
 
 export const WebhookScalarFieldEnum = {
@@ -2783,6 +3124,18 @@ export const DeadLetterAuditScalarFieldEnum = {
 export type DeadLetterAuditScalarFieldEnum = (typeof DeadLetterAuditScalarFieldEnum)[keyof typeof DeadLetterAuditScalarFieldEnum]
 
 
+export const MfaRecoveryCodeScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  codeHash: 'codeHash',
+  used: 'used',
+  usedAt: 'usedAt',
+  createdAt: 'createdAt'
+} as const
+
+export type MfaRecoveryCodeScalarFieldEnum = (typeof MfaRecoveryCodeScalarFieldEnum)[keyof typeof MfaRecoveryCodeScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -3083,6 +3436,9 @@ export type GlobalOmitConfig = {
   ingestionCursor?: Prisma.IngestionCursorOmit
   payment?: Prisma.PaymentOmit
   notificationPreference?: Prisma.NotificationPreferenceOmit
+  alertRule?: Prisma.AlertRuleOmit
+  alertRuleDispatchLog?: Prisma.AlertRuleDispatchLogOmit
+  whatsAppDeliveryLog?: Prisma.WhatsAppDeliveryLogOmit
   webhook?: Prisma.WebhookOmit
   webhookLog?: Prisma.WebhookLogOmit
   webhookCircuitBreaker?: Prisma.WebhookCircuitBreakerOmit
@@ -3104,6 +3460,7 @@ export type GlobalOmitConfig = {
   notificationDeliveryAttempt?: Prisma.NotificationDeliveryAttemptOmit
   deadLetter?: Prisma.DeadLetterOmit
   deadLetterAudit?: Prisma.DeadLetterAuditOmit
+  mfaRecoveryCode?: Prisma.MfaRecoveryCodeOmit
 }
 
 /* Types for Logging */

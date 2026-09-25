@@ -1,23 +1,198 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WebSocketMessage } from './websocket';
 
-// Mock Redis
+const verifyToken = vi.fn();
+
+vi.mock('../utils/jwt', () => ({
+  verifyToken: (...args: unknown[]) => verifyToken(...args),
+}));
+
+// Fake Redis subscriber captured so tests can simulate published messages.
+let subscriberMessageHandler: ((channel: string, message: string) => void) | undefined;
+const fakeSubscriber = {
+  connect: vi.fn().mockResolvedValue(undefined),
+  subscribe: vi.fn().mockResolvedValue(undefined),
+  on: vi.fn((event: string, handler: any) => {
+    if (event === 'message') subscriberMessageHandler = handler;
+  }),
+  quit: vi.fn().mockResolvedValue(undefined),
+};
+
 vi.mock('../lib/redis', () => ({
   redis: {
-    duplicate: vi.fn(() => ({
-      connect: vi.fn(),
-      subscribe: vi.fn(),
-      on: vi.fn(),
-      quit: vi.fn(),
-    })),
+    duplicate: vi.fn(() => fakeSubscriber),
   },
 }));
 
-describe('WebSocket Plugin', () => {
+vi.mock('@fastify/websocket', () => ({ default: vi.fn() }));
+
+function makeFakeSocket() {
+  return {
+    readyState: 1, // OPEN
+    sent: [] as any[],
+    send(data: string) {
+      this.sent.push(JSON.parse(data));
+    },
+    on: vi.fn(),
+    close: vi.fn(),
+  };
+}
+
+async function loadPlugin() {
+  const mod = await import('./websocket');
+  return mod.default as unknown as (server: any) => Promise<void>;
+}
+
+function makeFakeServer() {
+  const routes: Record<string, any> = {};
+  const decorations: Record<string, any> = {};
+  const server = {
+    register: vi.fn().mockResolvedValue(undefined),
+    decorate: vi.fn((name: string, value: any) => {
+      decorations[name] = value;
+    }),
+    get: vi.fn((path: string, _opts: any, handler: any) => {
+      routes[path] = handler;
+    }),
+    addHook: vi.fn(),
+    log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    routes,
+    decorations,
+  };
+  return server;
+}
+
+describe('WebSocket plugin auth + tenant isolation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    subscriberMessageHandler = undefined;
   });
 
+  it('rejects a connection with no token', async () => {
+    const plugin = await loadPlugin();
+    const server = makeFakeServer();
+    await plugin(server);
+
+    const socket = makeFakeSocket();
+    server.routes['/ws'](socket, { query: {} });
+
+    expect(socket.close).toHaveBeenCalledWith(4401, 'Unauthorized');
+    expect(socket.sent).toHaveLength(0);
+  });
+
+  it('rejects a connection with an invalid/expired token', async () => {
+    verifyToken.mockImplementation(() => {
+      throw new Error('invalid token');
+    });
+    const plugin = await loadPlugin();
+    const server = makeFakeServer();
+    await plugin(server);
+
+    const socket = makeFakeSocket();
+    server.routes['/ws'](socket, { query: { token: 'bad-token' } });
+
+    expect(socket.close).toHaveBeenCalledWith(4401, 'Unauthorized');
+  });
+
+  it('admits a connection with a valid token and sends a connection message', async () => {
+    verifyToken.mockReturnValue({ id: 'user-a', email: 'a@example.com' });
+    const plugin = await loadPlugin();
+    const server = makeFakeServer();
+    await plugin(server);
+
+    const socket = makeFakeSocket();
+    server.routes['/ws'](socket, { query: { token: 'good-token' } });
+
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(socket.sent).toEqual([
+      expect.objectContaining({ type: 'connection', payload: { status: 'connected' } }),
+    ]);
+  });
+
+  it('routes a Redis-published event only to the connected sockets for that userId', async () => {
+    verifyToken.mockImplementation((token: string) =>
+      token === 'token-a' ? { id: 'user-a' } : { id: 'user-b' }
+    );
+    const plugin = await loadPlugin();
+    const server = makeFakeServer();
+    await plugin(server);
+
+    const socketA = makeFakeSocket();
+    const socketB = makeFakeSocket();
+    server.routes['/ws'](socketA, { query: { token: 'token-a' } });
+    server.routes['/ws'](socketB, { query: { token: 'token-b' } });
+    socketA.sent = [];
+    socketB.sent = [];
+
+    expect(subscriberMessageHandler).toBeDefined();
+    subscriberMessageHandler!(
+      'stellar-alerts:payments',
+      JSON.stringify({
+        userId: 'user-a',
+        type: 'payment',
+        payload: { id: 'pay_1' },
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    expect(socketA.sent).toHaveLength(1);
+    expect(socketA.sent[0].payload.id).toBe('pay_1');
+    expect(socketB.sent).toHaveLength(0);
+  });
+
+  it('routes delivery events to the connected user the same way as payment events', async () => {
+    verifyToken.mockReturnValue({ id: 'user-a' });
+    const plugin = await loadPlugin();
+    const server = makeFakeServer();
+    await plugin(server);
+
+    const socket = makeFakeSocket();
+    server.routes['/ws'](socket, { query: { token: 'token-a' } });
+    socket.sent = [];
+
+    subscriberMessageHandler!(
+      'stellar-alerts:deliveries',
+      JSON.stringify({
+        userId: 'user-a',
+        type: 'delivery',
+        payload: { id: 'log_1', statusCode: 200 },
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    expect(socket.sent).toHaveLength(1);
+    expect(socket.sent[0].type).toBe('delivery');
+  });
+
+  it('stops routing to a socket after it disconnects', async () => {
+    verifyToken.mockReturnValue({ id: 'user-a' });
+    const plugin = await loadPlugin();
+    const server = makeFakeServer();
+    await plugin(server);
+
+    const socket = makeFakeSocket();
+    server.routes['/ws'](socket, { query: { token: 'token-a' } });
+    socket.sent = [];
+
+    const closeHandler = socket.on.mock.calls.find(([event]) => event === 'close')?.[1];
+    expect(closeHandler).toBeDefined();
+    closeHandler();
+
+    subscriberMessageHandler!(
+      'stellar-alerts:payments',
+      JSON.stringify({
+        userId: 'user-a',
+        type: 'payment',
+        payload: { id: 'pay_1' },
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    expect(socket.sent).toHaveLength(0);
+  });
+});
+
+describe('WebSocketMessage type', () => {
   it('should create a valid WebSocket message', () => {
     const message: WebSocketMessage = {
       type: 'payment',
@@ -38,109 +213,13 @@ describe('WebSocket Plugin', () => {
     expect(message.timestamp).toBeDefined();
   });
 
-  it('should support different message types', () => {
-    const paymentMessage: WebSocketMessage = {
-      type: 'payment',
-      payload: {},
-      timestamp: new Date().toISOString(),
-    };
-
-    const walletMessage: WebSocketMessage = {
-      type: 'wallet_update',
-      payload: {},
-      timestamp: new Date().toISOString(),
-    };
-
-    const connectionMessage: WebSocketMessage = {
-      type: 'connection',
-      payload: { status: 'connected' },
-      timestamp: new Date().toISOString(),
-    };
-
-    expect(paymentMessage.type).toBe('payment');
-    expect(walletMessage.type).toBe('wallet_update');
-    expect(connectionMessage.type).toBe('connection');
-  });
-
-  it('should serialize message to JSON', () => {
+  it('should support the delivery message type', () => {
     const message: WebSocketMessage = {
-      type: 'payment',
-      payload: { amount: 100 },
-      timestamp: '2024-01-01T00:00:00.000Z',
-    };
-
-    const serialized = JSON.stringify(message);
-    const parsed = JSON.parse(serialized);
-
-    expect(parsed.type).toBe('payment');
-    expect(parsed.payload.amount).toBe(100);
-    expect(parsed.timestamp).toBe('2024-01-01T00:00:00.000Z');
-  });
-
-  it('should handle payment message with all fields', () => {
-    const payment = {
-      id: 'pay_123',
-      walletId: 'wallet_456',
-      txHash: 'abc123def456',
-      fromAddress: 'GABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234',
-      amount: 1000.50,
-      asset: 'USDC',
-      memo: 'Payment for services',
-      receivedAt: '2024-01-15T10:30:00.000Z',
-    };
-
-    const message: WebSocketMessage = {
-      type: 'payment',
-      payload: payment,
+      type: 'delivery',
+      payload: { id: 'log_1', statusCode: 200 },
       timestamp: new Date().toISOString(),
     };
 
-    expect(message.type).toBe('payment');
-    expect(message.payload.id).toBe('pay_123');
-    expect(message.payload.amount).toBe(1000.50);
-    expect(message.payload.memo).toBe('Payment for services');
-  });
-
-  it('should handle connection status message', () => {
-    const message: WebSocketMessage = {
-      type: 'connection',
-      payload: {
-        status: 'connected',
-        clients: 5,
-      },
-      timestamp: new Date().toISOString(),
-    };
-
-    expect(message.type).toBe('connection');
-    expect(message.payload.status).toBe('connected');
-    expect(message.payload.clients).toBe(5);
-  });
-
-  it('should handle wallet update message', () => {
-    const message: WebSocketMessage = {
-      type: 'wallet_update',
-      payload: {
-        walletId: 'wallet_123',
-        action: 'added',
-      },
-      timestamp: new Date().toISOString(),
-    };
-
-    expect(message.type).toBe('wallet_update');
-    expect(message.payload.action).toBe('added');
-  });
-
-  it('should validate message structure', () => {
-    const validMessage: WebSocketMessage = {
-      type: 'payment',
-      payload: {},
-      timestamp: new Date().toISOString(),
-    };
-
-    expect(validMessage).toHaveProperty('type');
-    expect(validMessage).toHaveProperty('payload');
-    expect(validMessage).toHaveProperty('timestamp');
-    expect(typeof validMessage.type).toBe('string');
-    expect(typeof validMessage.timestamp).toBe('string');
+    expect(message.type).toBe('delivery');
   });
 });
