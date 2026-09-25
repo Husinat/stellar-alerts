@@ -439,6 +439,16 @@ export interface PrismaClient<
   get securityAuditLog(): Prisma.SecurityAuditLogDelegate<ExtArgs, { omit: OmitOpts }>;
 
   /**
+   * `prisma.notificationDelivery`: Exposes CRUD operations for the **NotificationDelivery** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more NotificationDeliveries
+    * const notificationDeliveries = await prisma.notificationDelivery.findMany()
+    * ```
+    */
+  get notificationDelivery(): Prisma.NotificationDeliveryDelegate<ExtArgs, { omit: OmitOpts }>;
+
+  /**
    * `prisma.notificationDeliveryAttempt`: Exposes CRUD operations for the **NotificationDeliveryAttempt** model.
     * Example usage:
     * ```ts
