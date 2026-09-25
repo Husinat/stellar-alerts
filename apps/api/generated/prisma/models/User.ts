@@ -193,7 +193,7 @@ export type UserWhereInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptListRelationFilter
   deliveries?: Prisma.NotificationDeliveryListRelationFilter
   deadLetters?: Prisma.DeadLetterListRelationFilter
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeListRelationFilter
+  refreshSessions?: Prisma.RefreshSessionListRelationFilter
 }
 
 export type UserOrderByWithRelationInput = {
@@ -213,7 +213,7 @@ export type UserOrderByWithRelationInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptOrderByRelationAggregateInput
   deliveries?: Prisma.NotificationDeliveryOrderByRelationAggregateInput
   deadLetters?: Prisma.DeadLetterOrderByRelationAggregateInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeOrderByRelationAggregateInput
+  refreshSessions?: Prisma.RefreshSessionOrderByRelationAggregateInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -236,7 +236,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptListRelationFilter
   deliveries?: Prisma.NotificationDeliveryListRelationFilter
   deadLetters?: Prisma.DeadLetterListRelationFilter
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeListRelationFilter
+  refreshSessions?: Prisma.RefreshSessionListRelationFilter
 }, "id" | "email">
 
 export type UserOrderByWithAggregationInput = {
@@ -278,7 +278,7 @@ export type UserCreateInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateInput = {
@@ -298,7 +298,7 @@ export type UserUncheckedCreateInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryUncheckedCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterUncheckedCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserUpdateInput = {
@@ -318,7 +318,7 @@ export type UserUpdateInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
@@ -338,7 +338,7 @@ export type UserUncheckedUpdateInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUncheckedUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUncheckedUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateManyInput = {
@@ -575,18 +575,18 @@ export type UserUpdateOneWithoutDeadLettersNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutDeadLettersInput, Prisma.UserUpdateWithoutDeadLettersInput>, Prisma.UserUncheckedUpdateWithoutDeadLettersInput>
 }
 
-export type UserCreateNestedOneWithoutMfaRecoveryCodesInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutMfaRecoveryCodesInput, Prisma.UserUncheckedCreateWithoutMfaRecoveryCodesInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutMfaRecoveryCodesInput
+export type UserCreateNestedOneWithoutRefreshSessionsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutRefreshSessionsInput, Prisma.UserUncheckedCreateWithoutRefreshSessionsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutRefreshSessionsInput
   connect?: Prisma.UserWhereUniqueInput
 }
 
-export type UserUpdateOneRequiredWithoutMfaRecoveryCodesNestedInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutMfaRecoveryCodesInput, Prisma.UserUncheckedCreateWithoutMfaRecoveryCodesInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutMfaRecoveryCodesInput
-  upsert?: Prisma.UserUpsertWithoutMfaRecoveryCodesInput
+export type UserUpdateOneRequiredWithoutRefreshSessionsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutRefreshSessionsInput, Prisma.UserUncheckedCreateWithoutRefreshSessionsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutRefreshSessionsInput
+  upsert?: Prisma.UserUpsertWithoutRefreshSessionsInput
   connect?: Prisma.UserWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutMfaRecoveryCodesInput, Prisma.UserUpdateWithoutMfaRecoveryCodesInput>, Prisma.UserUncheckedUpdateWithoutMfaRecoveryCodesInput>
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutRefreshSessionsInput, Prisma.UserUpdateWithoutRefreshSessionsInput>, Prisma.UserUncheckedUpdateWithoutRefreshSessionsInput>
 }
 
 export type UserCreateWithoutWalletsInput = {
@@ -605,7 +605,7 @@ export type UserCreateWithoutWalletsInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutWalletsInput = {
@@ -624,7 +624,7 @@ export type UserUncheckedCreateWithoutWalletsInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryUncheckedCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterUncheckedCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutWalletsInput = {
@@ -659,7 +659,7 @@ export type UserUpdateWithoutWalletsInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWalletsInput = {
@@ -678,7 +678,7 @@ export type UserUncheckedUpdateWithoutWalletsInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUncheckedUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUncheckedUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutNotifyPrefsInput = {
@@ -697,7 +697,7 @@ export type UserCreateWithoutNotifyPrefsInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutNotifyPrefsInput = {
@@ -716,7 +716,7 @@ export type UserUncheckedCreateWithoutNotifyPrefsInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryUncheckedCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterUncheckedCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutNotifyPrefsInput = {
@@ -751,7 +751,7 @@ export type UserUpdateWithoutNotifyPrefsInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutNotifyPrefsInput = {
@@ -770,6 +770,7 @@ export type UserUncheckedUpdateWithoutNotifyPrefsInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUncheckedUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUncheckedUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutAlertRulesInput = {
@@ -873,7 +874,7 @@ export type UserCreateWithoutWebhooksInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutWebhooksInput = {
@@ -892,7 +893,7 @@ export type UserUncheckedCreateWithoutWebhooksInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryUncheckedCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterUncheckedCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutWebhooksInput = {
@@ -927,7 +928,7 @@ export type UserUpdateWithoutWebhooksInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWebhooksInput = {
@@ -946,7 +947,7 @@ export type UserUncheckedUpdateWithoutWebhooksInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUncheckedUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUncheckedUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutSorobanSubscriptionsInput = {
@@ -965,7 +966,7 @@ export type UserCreateWithoutSorobanSubscriptionsInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutSorobanSubscriptionsInput = {
@@ -984,7 +985,7 @@ export type UserUncheckedCreateWithoutSorobanSubscriptionsInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryUncheckedCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterUncheckedCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutSorobanSubscriptionsInput = {
@@ -1019,7 +1020,7 @@ export type UserUpdateWithoutSorobanSubscriptionsInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSorobanSubscriptionsInput = {
@@ -1038,7 +1039,7 @@ export type UserUncheckedUpdateWithoutSorobanSubscriptionsInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUncheckedUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUncheckedUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutMultisigSignerWatchesInput = {
@@ -1057,7 +1058,7 @@ export type UserCreateWithoutMultisigSignerWatchesInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutMultisigSignerWatchesInput = {
@@ -1076,7 +1077,7 @@ export type UserUncheckedCreateWithoutMultisigSignerWatchesInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryUncheckedCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterUncheckedCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutMultisigSignerWatchesInput = {
@@ -1111,7 +1112,7 @@ export type UserUpdateWithoutMultisigSignerWatchesInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutMultisigSignerWatchesInput = {
@@ -1130,7 +1131,7 @@ export type UserUncheckedUpdateWithoutMultisigSignerWatchesInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUncheckedUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUncheckedUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutAnchorWatchesInput = {
@@ -1149,7 +1150,7 @@ export type UserCreateWithoutAnchorWatchesInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAnchorWatchesInput = {
@@ -1168,7 +1169,7 @@ export type UserUncheckedCreateWithoutAnchorWatchesInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryUncheckedCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterUncheckedCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAnchorWatchesInput = {
@@ -1203,7 +1204,7 @@ export type UserUpdateWithoutAnchorWatchesInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAnchorWatchesInput = {
@@ -1222,7 +1223,7 @@ export type UserUncheckedUpdateWithoutAnchorWatchesInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUncheckedUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUncheckedUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutDexSwapWatchesInput = {
@@ -1241,7 +1242,7 @@ export type UserCreateWithoutDexSwapWatchesInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutDexSwapWatchesInput = {
@@ -1260,7 +1261,7 @@ export type UserUncheckedCreateWithoutDexSwapWatchesInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryUncheckedCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterUncheckedCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutDexSwapWatchesInput = {
@@ -1295,7 +1296,7 @@ export type UserUpdateWithoutDexSwapWatchesInput = {
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutDexSwapWatchesInput = {
@@ -1398,7 +1399,7 @@ export type UserUncheckedUpdateWithoutDeliveriesInput = {
   dexSwapWatches?: Prisma.DexSwapWatchUncheckedUpdateManyWithoutUserNestedInput
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUncheckedUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutDeliveryAttemptsInput = {
@@ -1416,7 +1417,7 @@ export type UserCreateWithoutDeliveryAttemptsInput = {
   dexSwapWatches?: Prisma.DexSwapWatchCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutDeliveryAttemptsInput = {
@@ -1434,7 +1435,7 @@ export type UserUncheckedCreateWithoutDeliveryAttemptsInput = {
   dexSwapWatches?: Prisma.DexSwapWatchUncheckedCreateNestedManyWithoutUserInput
   deliveries?: Prisma.NotificationDeliveryUncheckedCreateNestedManyWithoutUserInput
   deadLetters?: Prisma.DeadLetterUncheckedCreateNestedManyWithoutUserInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutDeliveryAttemptsInput = {
@@ -1468,7 +1469,7 @@ export type UserUpdateWithoutDeliveryAttemptsInput = {
   dexSwapWatches?: Prisma.DexSwapWatchUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutDeliveryAttemptsInput = {
@@ -1486,7 +1487,7 @@ export type UserUncheckedUpdateWithoutDeliveryAttemptsInput = {
   dexSwapWatches?: Prisma.DexSwapWatchUncheckedUpdateManyWithoutUserNestedInput
   deliveries?: Prisma.NotificationDeliveryUncheckedUpdateManyWithoutUserNestedInput
   deadLetters?: Prisma.DeadLetterUncheckedUpdateManyWithoutUserNestedInput
-  mfaRecoveryCodes?: Prisma.MfaRecoveryCodeUncheckedUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutDeadLettersInput = {
@@ -1504,7 +1505,7 @@ export type UserCreateWithoutDeadLettersInput = {
   dexSwapWatches?: Prisma.DexSwapWatchCreateNestedManyWithoutUserInput
   alertRules?: Prisma.AlertRuleCreateNestedManyWithoutUserInput
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptCreateNestedManyWithoutUserInput
-  deliveries?: Prisma.NotificationDeliveryCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutDeadLettersInput = {
@@ -1522,7 +1523,7 @@ export type UserUncheckedCreateWithoutDeadLettersInput = {
   dexSwapWatches?: Prisma.DexSwapWatchUncheckedCreateNestedManyWithoutUserInput
   alertRules?: Prisma.AlertRuleUncheckedCreateNestedManyWithoutUserInput
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedCreateNestedManyWithoutUserInput
-  deliveries?: Prisma.NotificationDeliveryUncheckedCreateNestedManyWithoutUserInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutDeadLettersInput = {
@@ -1556,7 +1557,7 @@ export type UserUpdateWithoutDeadLettersInput = {
   dexSwapWatches?: Prisma.DexSwapWatchUpdateManyWithoutUserNestedInput
   alertRules?: Prisma.AlertRuleUpdateManyWithoutUserNestedInput
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUpdateManyWithoutUserNestedInput
-  deliveries?: Prisma.NotificationDeliveryUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutDeadLettersInput = {
@@ -1658,7 +1659,91 @@ export type UserUncheckedUpdateWithoutMfaRecoveryCodesInput = {
   anchorWatches?: Prisma.AnchorTransactionWatchUncheckedUpdateManyWithoutUserNestedInput
   dexSwapWatches?: Prisma.DexSwapWatchUncheckedUpdateManyWithoutUserNestedInput
   deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedUpdateManyWithoutUserNestedInput
-  deliveries?: Prisma.NotificationDeliveryUncheckedUpdateManyWithoutUserNestedInput
+  refreshSessions?: Prisma.RefreshSessionUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutRefreshSessionsInput = {
+  id?: string
+  email: string
+  mfaSecret?: string | null
+  mfaEnabled?: boolean
+  createdAt?: Date | string
+  wallets?: Prisma.WalletCreateNestedManyWithoutUserInput
+  webhooks?: Prisma.WebhookCreateNestedManyWithoutUserInput
+  notifyPrefs?: Prisma.NotificationPreferenceCreateNestedOneWithoutUserInput
+  sorobanSubscriptions?: Prisma.SorobanContractSubscriptionCreateNestedManyWithoutUserInput
+  multisigSignerWatches?: Prisma.MultisigSignerWatcherCreateNestedManyWithoutUserInput
+  anchorWatches?: Prisma.AnchorTransactionWatchCreateNestedManyWithoutUserInput
+  dexSwapWatches?: Prisma.DexSwapWatchCreateNestedManyWithoutUserInput
+  deliveryAttempts?: Prisma.NotificationDeliveryAttemptCreateNestedManyWithoutUserInput
+  deadLetters?: Prisma.DeadLetterCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutRefreshSessionsInput = {
+  id?: string
+  email: string
+  mfaSecret?: string | null
+  mfaEnabled?: boolean
+  createdAt?: Date | string
+  wallets?: Prisma.WalletUncheckedCreateNestedManyWithoutUserInput
+  webhooks?: Prisma.WebhookUncheckedCreateNestedManyWithoutUserInput
+  notifyPrefs?: Prisma.NotificationPreferenceUncheckedCreateNestedOneWithoutUserInput
+  sorobanSubscriptions?: Prisma.SorobanContractSubscriptionUncheckedCreateNestedManyWithoutUserInput
+  multisigSignerWatches?: Prisma.MultisigSignerWatcherUncheckedCreateNestedManyWithoutUserInput
+  anchorWatches?: Prisma.AnchorTransactionWatchUncheckedCreateNestedManyWithoutUserInput
+  dexSwapWatches?: Prisma.DexSwapWatchUncheckedCreateNestedManyWithoutUserInput
+  deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedCreateNestedManyWithoutUserInput
+  deadLetters?: Prisma.DeadLetterUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutRefreshSessionsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutRefreshSessionsInput, Prisma.UserUncheckedCreateWithoutRefreshSessionsInput>
+}
+
+export type UserUpsertWithoutRefreshSessionsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutRefreshSessionsInput, Prisma.UserUncheckedUpdateWithoutRefreshSessionsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutRefreshSessionsInput, Prisma.UserUncheckedCreateWithoutRefreshSessionsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutRefreshSessionsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutRefreshSessionsInput, Prisma.UserUncheckedUpdateWithoutRefreshSessionsInput>
+}
+
+export type UserUpdateWithoutRefreshSessionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  mfaSecret?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  mfaEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  wallets?: Prisma.WalletUpdateManyWithoutUserNestedInput
+  webhooks?: Prisma.WebhookUpdateManyWithoutUserNestedInput
+  notifyPrefs?: Prisma.NotificationPreferenceUpdateOneWithoutUserNestedInput
+  sorobanSubscriptions?: Prisma.SorobanContractSubscriptionUpdateManyWithoutUserNestedInput
+  multisigSignerWatches?: Prisma.MultisigSignerWatcherUpdateManyWithoutUserNestedInput
+  anchorWatches?: Prisma.AnchorTransactionWatchUpdateManyWithoutUserNestedInput
+  dexSwapWatches?: Prisma.DexSwapWatchUpdateManyWithoutUserNestedInput
+  deliveryAttempts?: Prisma.NotificationDeliveryAttemptUpdateManyWithoutUserNestedInput
+  deadLetters?: Prisma.DeadLetterUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutRefreshSessionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  mfaSecret?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  mfaEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  wallets?: Prisma.WalletUncheckedUpdateManyWithoutUserNestedInput
+  webhooks?: Prisma.WebhookUncheckedUpdateManyWithoutUserNestedInput
+  notifyPrefs?: Prisma.NotificationPreferenceUncheckedUpdateOneWithoutUserNestedInput
+  sorobanSubscriptions?: Prisma.SorobanContractSubscriptionUncheckedUpdateManyWithoutUserNestedInput
+  multisigSignerWatches?: Prisma.MultisigSignerWatcherUncheckedUpdateManyWithoutUserNestedInput
+  anchorWatches?: Prisma.AnchorTransactionWatchUncheckedUpdateManyWithoutUserNestedInput
+  dexSwapWatches?: Prisma.DexSwapWatchUncheckedUpdateManyWithoutUserNestedInput
+  deliveryAttempts?: Prisma.NotificationDeliveryAttemptUncheckedUpdateManyWithoutUserNestedInput
+  deadLetters?: Prisma.DeadLetterUncheckedUpdateManyWithoutUserNestedInput
 }
 
 
@@ -1677,7 +1762,7 @@ export type UserCountOutputType = {
   deliveryAttempts: number
   deliveries: number
   deadLetters: number
-  mfaRecoveryCodes: number
+  refreshSessions: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1691,7 +1776,7 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   deliveryAttempts?: boolean | UserCountOutputTypeCountDeliveryAttemptsArgs
   deliveries?: boolean | UserCountOutputTypeCountDeliveriesArgs
   deadLetters?: boolean | UserCountOutputTypeCountDeadLettersArgs
-  mfaRecoveryCodes?: boolean | UserCountOutputTypeCountMfaRecoveryCodesArgs
+  refreshSessions?: boolean | UserCountOutputTypeCountRefreshSessionsArgs
 }
 
 /**
@@ -1777,8 +1862,8 @@ export type UserCountOutputTypeCountDeadLettersArgs<ExtArgs extends runtime.Type
 /**
  * UserCountOutputType without action
  */
-export type UserCountOutputTypeCountMfaRecoveryCodesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.MfaRecoveryCodeWhereInput
+export type UserCountOutputTypeCountRefreshSessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.RefreshSessionWhereInput
 }
 
 
@@ -1799,7 +1884,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   deliveryAttempts?: boolean | Prisma.User$deliveryAttemptsArgs<ExtArgs>
   deliveries?: boolean | Prisma.User$deliveriesArgs<ExtArgs>
   deadLetters?: boolean | Prisma.User$deadLettersArgs<ExtArgs>
-  mfaRecoveryCodes?: boolean | Prisma.User$mfaRecoveryCodesArgs<ExtArgs>
+  refreshSessions?: boolean | Prisma.User$refreshSessionsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
@@ -1840,7 +1925,7 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   deliveryAttempts?: boolean | Prisma.User$deliveryAttemptsArgs<ExtArgs>
   deliveries?: boolean | Prisma.User$deliveriesArgs<ExtArgs>
   deadLetters?: boolean | Prisma.User$deadLettersArgs<ExtArgs>
-  mfaRecoveryCodes?: boolean | Prisma.User$mfaRecoveryCodesArgs<ExtArgs>
+  refreshSessions?: boolean | Prisma.User$refreshSessionsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -1860,7 +1945,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     deliveryAttempts: Prisma.$NotificationDeliveryAttemptPayload<ExtArgs>[]
     deliveries: Prisma.$NotificationDeliveryPayload<ExtArgs>[]
     deadLetters: Prisma.$DeadLetterPayload<ExtArgs>[]
-    mfaRecoveryCodes: Prisma.$MfaRecoveryCodePayload<ExtArgs>[]
+    refreshSessions: Prisma.$RefreshSessionPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -2273,7 +2358,7 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   deliveryAttempts<T extends Prisma.User$deliveryAttemptsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$deliveryAttemptsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$NotificationDeliveryAttemptPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   deliveries<T extends Prisma.User$deliveriesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$deliveriesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$NotificationDeliveryPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   deadLetters<T extends Prisma.User$deadLettersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$deadLettersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$DeadLetterPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  mfaRecoveryCodes<T extends Prisma.User$mfaRecoveryCodesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$mfaRecoveryCodesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MfaRecoveryCodePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  refreshSessions<T extends Prisma.User$refreshSessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$refreshSessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RefreshSessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2960,27 +3045,27 @@ export type User$deadLettersArgs<ExtArgs extends runtime.Types.Extensions.Intern
 }
 
 /**
- * User.mfaRecoveryCodes
+ * User.refreshSessions
  */
-export type User$mfaRecoveryCodesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+export type User$refreshSessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   /**
-   * Select specific fields to fetch from the MfaRecoveryCode
+   * Select specific fields to fetch from the RefreshSession
    */
-  select?: Prisma.MfaRecoveryCodeSelect<ExtArgs> | null
+  select?: Prisma.RefreshSessionSelect<ExtArgs> | null
   /**
-   * Omit specific fields from the MfaRecoveryCode
+   * Omit specific fields from the RefreshSession
    */
-  omit?: Prisma.MfaRecoveryCodeOmit<ExtArgs> | null
+  omit?: Prisma.RefreshSessionOmit<ExtArgs> | null
   /**
    * Choose, which related nodes to fetch as well
    */
-  include?: Prisma.MfaRecoveryCodeInclude<ExtArgs> | null
-  where?: Prisma.MfaRecoveryCodeWhereInput
-  orderBy?: Prisma.MfaRecoveryCodeOrderByWithRelationInput | Prisma.MfaRecoveryCodeOrderByWithRelationInput[]
-  cursor?: Prisma.MfaRecoveryCodeWhereUniqueInput
+  include?: Prisma.RefreshSessionInclude<ExtArgs> | null
+  where?: Prisma.RefreshSessionWhereInput
+  orderBy?: Prisma.RefreshSessionOrderByWithRelationInput | Prisma.RefreshSessionOrderByWithRelationInput[]
+  cursor?: Prisma.RefreshSessionWhereUniqueInput
   take?: number
   skip?: number
-  distinct?: Prisma.MfaRecoveryCodeScalarFieldEnum | Prisma.MfaRecoveryCodeScalarFieldEnum[]
+  distinct?: Prisma.RefreshSessionScalarFieldEnum | Prisma.RefreshSessionScalarFieldEnum[]
 }
 
 /**

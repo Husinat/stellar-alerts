@@ -185,7 +185,12 @@ export type DeadLetter = Prisma.DeadLetterModel
  */
 export type DeadLetterAudit = Prisma.DeadLetterAuditModel
 /**
- * Model MfaRecoveryCode
+ * Model RefreshSession
  * 
  */
-export type MfaRecoveryCode = Prisma.MfaRecoveryCodeModel
+export type RefreshSession = Prisma.RefreshSessionModel
+/**
+ * Model RefreshTokenHistory
+ * 
+ */
+export type RefreshTokenHistory = Prisma.RefreshTokenHistoryModel

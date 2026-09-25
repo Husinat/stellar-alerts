@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken, UserPayload } from '../utils/jwt';
 import { isTokenRevoked } from '../lib/tokenBlocklist';
+import { isFamilyRevoked } from '../lib/session-manager';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -46,6 +47,22 @@ export async function authenticateHook(request: FastifyRequest, reply: FastifyRe
       // Fail-open: if Redis is unreachable, do not block the request.
       // Log the error so operators can investigate.
       request.log.error(`[Auth] Redis blocklist check failed: ${redisError.message}`);
+    }
+  }
+
+  // Check session family revocation (access token rotation & reuse detection #315)
+  if (decoded.familyId) {
+    try {
+      const familyRevoked = await isFamilyRevoked(decoded.familyId);
+      if (familyRevoked) {
+        return reply.status(401).send({
+          error: 'Unauthorized',
+          message: 'Session family has been revoked. Please log in again.',
+          code: 'SESSION_REVOKED',
+        });
+      }
+    } catch (famErr: any) {
+      request.log.error(`[Auth] Family revocation check failed: ${famErr.message}`);
     }
   }
 
