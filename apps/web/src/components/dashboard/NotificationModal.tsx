@@ -17,12 +17,6 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
   const [mfaRequired, setMfaRequired] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      checkMFAStatus();
-    }
-  }, [isOpen]);
-
   const checkMFAStatus = async () => {
     try {
       const token = localStorage.getItem('sessionToken');
@@ -38,6 +32,12 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
       console.error('Failed to check MFA status:', error);
     }
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      void checkMFAStatus();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

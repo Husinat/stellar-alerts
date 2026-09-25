@@ -1,8 +1,17 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { requestLinkSchema, verifyLinkSchema, telegramInitDataSchema, didChallengeSchema, didVerifySchema } from './auth.schema';
+import {
+  requestLinkSchema,
+  verifyLinkSchema,
+  telegramInitDataSchema,
+  didChallengeSchema,
+  didVerifySchema,
+  refreshTokenSchema,
+  revokeSessionSchema,
+} from './auth.schema';
 import { authService } from './auth.service';
 import { mfaService } from './mfa.service';
 import { TelegramInitDataError } from '../../utils/telegram';
+import { TokenReuseError, SessionRevokedError } from '../../lib/session-manager';
 import { createPublicKey, verify as cryptoVerify } from 'crypto';
 
 const TRUSTED_KEY_IDS = ['key1', 'key2', 'key3'];
@@ -173,6 +182,76 @@ export class AuthController {
       if (error.message === 'User not found') {
         return reply.status(404).send({ error: 'Not found', message: 'User not found' });
       }
+      return reply.status(500).send({ error: 'Internal server error', message: error.message });
+    }
+  }
+
+  async refreshTokens(request: FastifyRequest, reply: FastifyReply) {
+    const parsed = refreshTokenSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Invalid request',
+        message: 'Missing or invalid refreshToken parameter',
+        details: parsed.error.format(),
+      });
+    }
+
+    try {
+      const result = await authService.rotateRefreshToken(parsed.data.refreshToken, {
+        ip: request.ip,
+        userAgent: request.headers['user-agent'] as string | undefined,
+      });
+      return reply.send({
+        success: true,
+        ...result,
+      });
+    } catch (error: any) {
+      if (error instanceof TokenReuseError) {
+        return reply.status(401).send({
+          error: 'Unauthorized',
+          code: error.code,
+          message: error.message,
+        });
+      }
+      if (error instanceof SessionRevokedError) {
+        return reply.status(401).send({
+          error: 'Unauthorized',
+          code: error.code,
+          message: error.message,
+        });
+      }
+      if (error.message === 'Invalid or expired refresh token') {
+        return reply.status(401).send({
+          error: 'Unauthorized',
+          code: 'INVALID_TOKEN',
+          message: error.message,
+        });
+      }
+      return reply.status(500).send({
+        error: 'Internal server error',
+        message: error.message,
+      });
+    }
+  }
+
+  async revokeSession(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized', message: 'User not authenticated' });
+    }
+
+    const parsed = revokeSessionSchema.safeParse(request.body);
+    const targetFamilyId = (parsed.success && parsed.data.familyId) || request.user.familyId;
+
+    try {
+      if (targetFamilyId && targetFamilyId !== 'legacy') {
+        await authService.revokeSessionFamily(targetFamilyId);
+      }
+      await authService.revokeSession(request.user);
+      return reply.send({
+        success: true,
+        message: 'Session family revoked successfully.',
+      });
+    } catch (error: any) {
       return reply.status(500).send({ error: 'Internal server error', message: error.message });
     }
   }

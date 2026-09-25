@@ -11,7 +11,7 @@ export interface ApiConfig {
 }
 
 export class ApiAdapter {
-  constructor(private config: ApiConfig) {}
+  constructor(protected config: ApiConfig) {}
 
   protected async fetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${this.config.baseUrl}${endpoint}`;

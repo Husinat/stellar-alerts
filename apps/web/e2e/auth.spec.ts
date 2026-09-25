@@ -1,2 +1,3 @@
-import { test } from '@playwright's
-test('auth', () 4> {});
+import { test } from '@playwright/test';
+
+test('auth', () => {});

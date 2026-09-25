@@ -1,5 +1,5 @@
 import { prisma, prismaRead } from '../../lib/prisma';
-import { convertUsdToFiat, isSupportedFiatCurrency, SupportedFiatCurrency } from '../../lib/exchange-rates';
+import { isSupportedFiatCurrency, convertUsdToFiat, SupportedFiatCurrency } from '../../lib/exchange-rates';
 import { addDifferentialPrivacyNoise } from '../../utils/differential-privacy';
 
 export type PaymentSortField = 'receivedAt' | 'amount' | 'asset';

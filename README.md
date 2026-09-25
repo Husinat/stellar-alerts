@@ -29,6 +29,7 @@ Stellar Alerts monitors registered Stellar public wallets in real time for incom
 - 🔁 **Idempotent Delivery**: Webhook/Telegram/Email dispatches deduplicate via `notificationDeliveryAttempt`, preventing duplicate alerts on retries.
 - 🗄️ **Dead-Letter Queue & Inspector**: Terminal delivery failures are persisted (`DeadLetter`), audited, and can be replayed idempotently or suppressed from the API and web UI (`/dead-letters`).
 - 📊 **Modular React Dashboard**: Monitored wallets, summary statistics, and real-time payment history powered by Next.js and Tailwind CSS, organized into feature routes (`/dashboard`, `/inspectors`, `/settings`, `/onboarding`, `/docs`).
+- 🧙 **Resumable Onboarding Wizard**: A three-step freelancer setup flow (wallet connection → Telegram linking → notification preferences) with a test-ping check before activation; progress persists to `localStorage` so a refresh resumes exactly where the user left off.
 - 🧪 **Automated Vitest Test Suite**: Unit testing framework with 100% passing test coverage (`npm run test:api`).
 
 ---

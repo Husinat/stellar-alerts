@@ -1,4 +1,4 @@
-import { Prisma } from '../../generated/prisma/client';
+import { Decimal } from '@prisma/client/runtime/client';
 import { prisma } from '../lib/prisma';
 import {
   getActiveContractIds,
@@ -15,29 +15,32 @@ const LARGE_OPERATION_THRESHOLD = 100_000;
 
 async function processMintBurn(parsed: ParsedSorobanMintBurn): Promise<void> {
   const { contractId, eventType, amount, from, to, ledgerSeq } = parsed;
-  const amountDecimal = new Prisma.Decimal(amount);
+  const amountDecimal = new Decimal(amount);
   const ledger = ledgerSeq ?? 0;
-  const alertRequired = amountDecimal.greaterThan(LARGE_OPERATION_THRESHOLD);
 
   await prisma.$transaction(async (tx) => {
     const existing = await tx.sacTokenSupply.findUnique({ where: { contractId } });
 
     if (existing) {
       if (eventType === 'MINT') {
+        const newMinted = (existing.totalMinted as any).plus(amountDecimal);
+        const newCirculating = (existing.circulatingSupply as any).plus(amountDecimal);
         await tx.sacTokenSupply.update({
           where: { contractId },
           data: {
-            circulatingSupply: existing.circulatingSupply.plus(amountDecimal),
-            totalMinted: existing.totalMinted.plus(amountDecimal),
+            circulatingSupply: newCirculating,
+            totalMinted: newMinted,
           },
         });
       } else {
-        const newSupply = existing.circulatingSupply.minus(amountDecimal);
+        const newBurned = (existing.totalBurned as any).plus(amountDecimal);
+        const diff = (existing.circulatingSupply as any).minus(amountDecimal);
+        const newCirculating = diff.lessThan(0) ? new Decimal(0) : diff;
         await tx.sacTokenSupply.update({
           where: { contractId },
           data: {
-            circulatingSupply: newSupply.lessThan(0) ? new Prisma.Decimal(0) : newSupply,
-            totalBurned: existing.totalBurned.plus(amountDecimal),
+            circulatingSupply: newCirculating,
+            totalBurned: newBurned,
           },
         });
       }
@@ -45,9 +48,9 @@ async function processMintBurn(parsed: ParsedSorobanMintBurn): Promise<void> {
       await tx.sacTokenSupply.create({
         data: {
           contractId,
-          circulatingSupply: eventType === 'MINT' ? amountDecimal : new Prisma.Decimal(0),
-          totalMinted: eventType === 'MINT' ? amountDecimal : new Prisma.Decimal(0),
-          totalBurned: eventType === 'BURN' ? amountDecimal : new Prisma.Decimal(0),
+          circulatingSupply: eventType === 'MINT' ? amountDecimal : new Decimal(0),
+          totalMinted: eventType === 'MINT' ? amountDecimal : new Decimal(0),
+          totalBurned: eventType === 'BURN' ? amountDecimal : new Decimal(0),
         },
       });
     }
@@ -64,7 +67,7 @@ async function processMintBurn(parsed: ParsedSorobanMintBurn): Promise<void> {
     });
   });
 
-  if (alertRequired) {
+  if (amountDecimal.greaterThan(LARGE_OPERATION_THRESHOLD)) {
     console.warn(`[TokenAnalytics] 📈 Large ${eventType} on ${contractId}: ${amount} units (ledger ${ledger})`);
   }
 }

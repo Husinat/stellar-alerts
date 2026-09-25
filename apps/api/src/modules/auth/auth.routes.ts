@@ -1,7 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authController } from './auth.controller';
 import { authenticateHook } from '../../middleware/auth.middleware';
-import { verifyThresholdSignature } from '../../utils/tss-verifier';
 
 export async function authRoutes(app: FastifyInstance) {
   app.post('/auth/request-link', authController.requestMagicLink.bind(authController));
@@ -9,6 +8,8 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/auth/did/challenge', authController.requestDIDChallenge.bind(authController));
   app.post('/auth/did/verify', authController.verifyDIDAuth.bind(authController));
   app.post('/auth/telegram', authController.verifyTelegramInitData.bind(authController));
+  app.post('/auth/refresh', authController.refreshTokens.bind(authController));
+  app.post('/auth/revoke-session', { preHandler: [authenticateHook] }, authController.revokeSession.bind(authController));
   app.get('/auth/me', { preHandler: [authenticateHook] }, authController.getMe.bind(authController));
   app.post('/auth/logout', { preHandler: [authenticateHook] }, authController.logout.bind(authController));
   

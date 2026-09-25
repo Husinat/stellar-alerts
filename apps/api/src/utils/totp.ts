@@ -50,8 +50,7 @@ export function verifyTOTPToken(
   window: number = 1
 ): boolean {
   try {
-    authenticator.options = { window };
-    return authenticator.verify({
+    return (authenticator.verify as any)({
       token,
       secret,
     });

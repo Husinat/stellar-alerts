@@ -7,6 +7,7 @@
 import { prisma } from '../../lib/prisma';
 import { mfaService } from '../auth/mfa.service';
 import { encryptPersonalField, decryptPersonalField } from '../../utils/privacy';
+import { isValidE164Number } from '../../utils/whatsapp';
 
 export interface NotificationPreferences {
   telegramChatId?: string;
@@ -44,6 +45,20 @@ export class NotificationsService {
       }
     }
 
+    // Validate the WhatsApp number whenever one is supplied, regardless of
+    // whatsappEnabled — a malformed number shouldn't silently persist.
+    if (preferences.whatsappNumber !== undefined && !isValidE164Number(preferences.whatsappNumber)) {
+      throw new Error('Invalid WhatsApp number. Use E.164 format, e.g. +14155551234.');
+    }
+
+    // Opting in requires a number either in this request or already on file.
+    if (preferences.whatsappEnabled && !preferences.whatsappNumber) {
+      const existing = await prisma.notificationPreference.findUnique({ where: { userId } });
+      if (!existing?.whatsappNumber) {
+        throw new Error('A valid WhatsApp number is required to enable WhatsApp notifications');
+      }
+    }
+
     const dataToSave = {
       ...preferences,
       telegramChatId: preferences.telegramChatId ? encryptPersonalField(preferences.telegramChatId) : preferences.telegramChatId,
@@ -65,7 +80,7 @@ export class NotificationsService {
 
   /**
    * Get notification preferences for a user.
-   * 
+   *
    * @param userId - User ID
    */
   async getPreferences(userId: string) {
@@ -78,6 +93,57 @@ export class NotificationsService {
       telegramChatId: decryptPersonalField(pref.telegramChatId),
       whatsappNumber: decryptPersonalField(pref.whatsappNumber),
     };
+  }
+
+  /**
+   * Sends a one-off test message on a configured channel so a user can
+   * confirm the link works (e.g. from the onboarding wizard) before relying
+   * on it for real payment alerts.
+   *
+   * @param userId - User ID
+   * @param channel - Which channel to ping. Only 'telegram' is supported today.
+   */
+  async sendTestPing(
+    userId: string,
+    channel: 'telegram'
+  ): Promise<{ success: boolean; message: string }> {
+    const prefs = await prisma.notificationPreference.findUnique({ where: { userId } });
+
+    if (channel !== 'telegram') {
+      throw new Error(`Unsupported test ping channel: ${channel}`);
+    }
+
+    if (!prefs?.telegramChatId) {
+      throw new Error('No Telegram chat ID is linked for this user yet');
+    }
+
+    // telegramChatId is stored encrypted (see #314) — decrypt before use.
+    const telegramChatId = decryptPersonalField(prefs.telegramChatId);
+
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+      throw new Error('Telegram bot is not configured');
+    }
+
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: telegramChatId,
+          text: '✅ Stellar Alerts test ping — your Telegram alerts are connected.',
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      if (!response.ok) {
+        return { success: false, message: `Telegram responded with status ${response.status}` };
+      }
+
+      return { success: true, message: 'Test message sent to your linked Telegram chat.' };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to reach Telegram' };
+    }
   }
 }
 

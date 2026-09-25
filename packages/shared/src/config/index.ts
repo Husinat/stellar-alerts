@@ -202,7 +202,7 @@ export function printStartupDiagnostics(
  * Validates environment against a typed Zod schema with fail-fast production enforcement.
  */
 export function validateProcessEnv<T extends Record<string, any>>(
-  schema: z.ZodSchema<T>,
+  schema: z.ZodType<T, any, any>,
   envInput: Record<string, any>,
   processType: string,
   options: {

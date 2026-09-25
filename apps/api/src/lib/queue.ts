@@ -16,6 +16,7 @@ import { deliverWithIdempotency } from './delivery';
 import { persistDeadLetter } from './dead-letter';
 import { validateUrlForSsrf } from '../utils/ssrf';
 import { decryptPersonalField } from '../utils/privacy';
+import { dispatchWhatsAppAlert } from '../utils/whatsapp';
 
 function decryptWebhookSecret(webhook: {
   keyVersion: number;
@@ -581,10 +582,76 @@ export async function processAlertDispatch(data: AlertJobData) {
       );
     }
 
-  // Dispatch Telegram alert if configured
-  if (wallet?.user?.notifyPrefs?.telegramEnabled && wallet.user.notifyPrefs.telegramChatId) {
-    const rawChatId = wallet.user.notifyPrefs.telegramChatId;
-    const chatId = decryptPersonalField(rawChatId) || rawChatId;
+    // Dispatch a Telegram alert if the user linked and enabled a chat.
+    if (wallet?.user?.notifyPrefs?.telegramEnabled && wallet.user.notifyPrefs.telegramChatId) {
+      const rawChatId = wallet.user.notifyPrefs.telegramChatId;
+      const chatId = decryptPersonalField(rawChatId) || rawChatId;
+      await fetchWithTimeout(
+        `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: buildTelegramPaymentCard(data),
+            parse_mode: 'HTML',
+          }),
+        },
+        env.NOTIFICATION_PROVIDER_TIMEOUT_MS,
+        undefined,
+        'Telegram',
+      ).catch((err: any) => {
+        console.warn(`[Worker] Telegram dispatch error: ${err.message}`);
+      });
+    }
+
+    // Dispatch a WhatsApp alert via Twilio if the user opted in and Twilio
+    // is configured. Deduplicates against a prior successful delivery for
+    // this payment so a restarted job never double-sends.
+    if (wallet?.user?.notifyPrefs?.whatsappEnabled && wallet.user.notifyPrefs.whatsappNumber) {
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const fromNumber = process.env.TWILIO_WHATSAPP_FROM;
+
+      if (accountSid && authToken && fromNumber) {
+        const rawNumber = wallet.user.notifyPrefs.whatsappNumber;
+        const toNumber = decryptPersonalField(rawNumber) || rawNumber;
+
+        const alreadyDelivered = await prisma.whatsAppDeliveryLog.findFirst({
+          where: { paymentId: data.paymentId, success: true },
+        });
+
+        if (!alreadyDelivered) {
+          try {
+            const result = await dispatchWhatsAppAlert(toNumber, data, { accountSid, authToken, fromNumber });
+            await prisma.whatsAppDeliveryLog.create({
+              data: {
+                paymentId: data.paymentId,
+                toNumber,
+                success: result.success,
+                messageSid: result.messageSid,
+                status: result.status,
+                error: result.error,
+                attempts: result.attempts,
+              },
+            });
+          } catch (err: any) {
+            console.warn(`[Worker] WhatsApp dispatch error: ${err.message}`);
+            await prisma.whatsAppDeliveryLog.create({
+              data: {
+                paymentId: data.paymentId,
+                toNumber,
+                success: false,
+                error: err.message,
+                attempts: 0,
+              },
+            });
+          }
+        }
+      }
+    }
+
+    // Send email receipt to the payer's address of record.
     await deliverWithIdempotency(
       {
         paymentId: data.paymentId,
