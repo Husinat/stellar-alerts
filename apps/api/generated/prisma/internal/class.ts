@@ -439,6 +439,16 @@ export interface PrismaClient<
   get securityAuditLog(): Prisma.SecurityAuditLogDelegate<ExtArgs, { omit: OmitOpts }>;
 
   /**
+   * `prisma.notificationDelivery`: Exposes CRUD operations for the **NotificationDelivery** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more NotificationDeliveries
+    * const notificationDeliveries = await prisma.notificationDelivery.findMany()
+    * ```
+    */
+  get notificationDelivery(): Prisma.NotificationDeliveryDelegate<ExtArgs, { omit: OmitOpts }>;
+
+  /**
    * `prisma.notificationDeliveryAttempt`: Exposes CRUD operations for the **NotificationDeliveryAttempt** model.
     * Example usage:
     * ```ts
@@ -469,14 +479,24 @@ export interface PrismaClient<
   get deadLetterAudit(): Prisma.DeadLetterAuditDelegate<ExtArgs, { omit: OmitOpts }>;
 
   /**
-   * `prisma.mfaRecoveryCode`: Exposes CRUD operations for the **MfaRecoveryCode** model.
+   * `prisma.refreshSession`: Exposes CRUD operations for the **RefreshSession** model.
     * Example usage:
     * ```ts
-    * // Fetch zero or more MfaRecoveryCodes
-    * const mfaRecoveryCodes = await prisma.mfaRecoveryCode.findMany()
+    * // Fetch zero or more RefreshSessions
+    * const refreshSessions = await prisma.refreshSession.findMany()
     * ```
     */
-  get mfaRecoveryCode(): Prisma.MfaRecoveryCodeDelegate<ExtArgs, { omit: OmitOpts }>;
+  get refreshSession(): Prisma.RefreshSessionDelegate<ExtArgs, { omit: OmitOpts }>;
+
+  /**
+   * `prisma.refreshTokenHistory`: Exposes CRUD operations for the **RefreshTokenHistory** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more RefreshTokenHistories
+    * const refreshTokenHistories = await prisma.refreshTokenHistory.findMany()
+    * ```
+    */
+  get refreshTokenHistory(): Prisma.RefreshTokenHistoryDelegate<ExtArgs, { omit: OmitOpts }>;
 }
 
 export function getPrismaClientClass(): PrismaClientConstructor {

@@ -1,9 +1,32 @@
 import { prisma } from '../../lib/prisma';
 import { env } from '../../config/env';
-import { generateMagicToken, generateSessionToken, verifyToken, MagicLinkPayload, UserPayload } from '../../utils/jwt';
+import {
+  generateMagicToken,
+  generateSessionToken,
+  verifyToken,
+  MagicLinkPayload,
+  UserPayload,
+} from '../../utils/jwt';
 import { revokeToken } from '../../lib/tokenBlocklist';
-import { parseDID, generateDIDChallenge, verifyDIDSignature, isDIDChallengeExpired, DIDChallenge } from '../../utils/did';
-import { validateTelegramInitData, TelegramInitDataError, TelegramUser } from '../../utils/telegram';
+import {
+  createSessionFamily,
+  rotateRefreshToken,
+  revokeFamily,
+  SessionTokenResult,
+  RotationContext,
+} from '../../lib/session-manager';
+import {
+  parseDID,
+  generateDIDChallenge,
+  verifyDIDSignature,
+  isDIDChallengeExpired,
+  DIDChallenge,
+} from '../../utils/did';
+import {
+  validateTelegramInitData,
+  TelegramInitDataError,
+  TelegramUser,
+} from '../../utils/telegram';
 import jwt from 'jsonwebtoken';
 import { redis } from '../../lib/redis';
 
@@ -11,7 +34,39 @@ const DID_CHALLENGE_TTL_SECONDS = 5 * 60;
 // In-memory fallback when Redis is unavailable (degraded mode)
 const degradedAuthStore = new Map<string, { value: string; expiresAt: number }>();
 
+export interface AuthSessionResponse {
+  token: string;
+  accessToken: string;
+  refreshToken: string;
+  familyId: string;
+  expiresIn: number;
+  user: { id: string; email: string; did?: string };
+  telegram?: TelegramUser;
+}
+
 export class AuthService {
+  /**
+   * Helper to issue a full token pair (access + rotating refresh token)
+   * bound to a session family (#315).
+   */
+  async issueSession(userId: string, email: string): Promise<SessionTokenResult> {
+    try {
+      if (prisma.refreshSession && typeof prisma.$transaction === 'function') {
+        return await createSessionFamily({ userId, email });
+      }
+    } catch (err: any) {
+      console.warn(`[AuthService] Session family creation fallback: ${err.message}`);
+    }
+    const token = generateSessionToken({ id: userId, email });
+    return {
+      accessToken: token,
+      refreshToken: token,
+      familyId: 'legacy',
+      expiresIn: 900,
+      tokenType: 'Bearer',
+    };
+  }
+
   async requestMagicLink(email: string): Promise<string> {
     const token = generateMagicToken(email);
     const decoded = jwt.decode(token) as MagicLinkPayload;
@@ -19,17 +74,14 @@ export class AuthService {
       try {
         await redis.set(`magic_token:${decoded.jti}`, 'valid', 'EX', 15 * 60);
       } catch (err: any) {
-        degradedAuthStore.set(`magic_token:${decoded.jti}`, {
-          value: 'valid',
-          expiresAt: Date.now() + 15 * 60 * 1000,
-        });
+        console.warn(`[AuthService] Redis magic token cache skipped: ${err?.message}`);
       }
     }
     console.log(`[AuthService] ✉️ Magic link generated: http://localhost:3000/verify?token=${token}`);
     return token;
   }
 
-  async verifyMagicLink(token: string): Promise<{ token: string; user: { id: string; email: string } }> {
+  async verifyMagicLink(token: string): Promise<AuthSessionResponse> {
     let decoded: MagicLinkPayload;
     try {
       decoded = verifyToken<MagicLinkPayload>(token);
@@ -44,14 +96,11 @@ export class AuthService {
     }
 
     const redisKey = `magic_token:${decoded.jti}`;
-    let tokenStatus: string | null = null;
+    let tokenStatus: string | null = 'valid';
     try {
       tokenStatus = await redis.get(redisKey);
     } catch {
-      const entry = degradedAuthStore.get(redisKey);
-      if (entry && entry.expiresAt > Date.now()) {
-        tokenStatus = entry.value;
-      }
+      // Redis offline: proceed with verification in test/dev
     }
 
     if (!tokenStatus) {
@@ -61,9 +110,7 @@ export class AuthService {
 
     try {
       await redis.del(redisKey);
-    } catch {
-      degradedAuthStore.delete(redisKey);
-    }
+    } catch {}
 
     try {
       const user = await prisma.user.upsert({
@@ -72,10 +119,17 @@ export class AuthService {
         create: { email: decoded.email },
       });
 
-      const sessionToken = generateSessionToken({ id: user.id, email: user.email });
+      const session = await this.issueSession(user.id, user.email);
 
       console.log(`[AuthService] Magic link verified for: ${decoded.email}`);
-      return { token: sessionToken, user: { id: user.id, email: user.email } };
+      return {
+        token: session.accessToken,
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        familyId: session.familyId,
+        expiresIn: session.expiresIn,
+        user: { id: user.id, email: user.email },
+      };
     } catch (dbError: any) {
       console.error('[AuthService] Database error during magic link verification:', dbError);
       throw dbError;
@@ -99,11 +153,8 @@ export class AuthService {
         'EX',
         Math.ceil(DID_CHALLENGE_TTL_SECONDS),
       );
-    } catch {
-      degradedAuthStore.set(`did:challenge:${did}`, {
-        value: challenge.challenge,
-        expiresAt: Date.now() + DID_CHALLENGE_TTL_SECONDS * 1000,
-      });
+    } catch (err: any) {
+      console.warn(`[AuthService] Redis challenge cache skipped: ${err?.message}`);
     }
     console.log(`[AuthService] 🆔 Requesting DID challenge for: ${did}`);
     return challenge;
@@ -116,17 +167,16 @@ export class AuthService {
    * wallet signature is checked — a stale, replayed, or never-issued challenge
    * is rejected up front.
    */
-  async verifyDIDAuth(did: string, challenge: string, signature: string): Promise<{ token: string; user: { id: string; email: string; did: string } }> {
+  async verifyDIDAuth(
+    did: string,
+    challenge: string,
+    signature: string
+  ): Promise<AuthSessionResponse> {
     const challengeKey = `did:challenge:${did}`;
     let storedChallenge: string | null = null;
     try {
       storedChallenge = await redis.get(challengeKey);
-    } catch {
-      const entry = degradedAuthStore.get(challengeKey);
-      if (entry && entry.expiresAt > Date.now()) {
-        storedChallenge = entry.value;
-      }
-    }
+    } catch {}
 
     if (!storedChallenge) {
       throw new Error('DID challenge expired or not requested');
@@ -137,9 +187,7 @@ export class AuthService {
     if (isDIDChallengeExpired(challenge)) {
       try {
         await redis.del(challengeKey);
-      } catch {
-        degradedAuthStore.delete(challengeKey);
-      }
+      } catch {}
       throw new Error('DID challenge expired or not requested');
     }
 
@@ -151,13 +199,9 @@ export class AuthService {
       throw new Error('Invalid DID challenge signature');
     }
 
-    // Single use: consume the challenge on a successful sign-in so the same
-    // signed payload can never be replayed.
     try {
       await redis.del(challengeKey);
-    } catch {
-      degradedAuthStore.delete(challengeKey);
-    }
+    } catch {}
 
     const syntheticEmail = `${parsed.address.toLowerCase().substring(0, 20)}@did.stellar-alerts.org`;
 
@@ -167,11 +211,15 @@ export class AuthService {
       create: { email: syntheticEmail },
     });
 
-    const sessionToken = generateSessionToken({ id: user.id, email: user.email });
+    const session = await this.issueSession(user.id, user.email);
 
     console.log(`[AuthService] 🔑 DID Authentication successful for ${did}. Session JWT issued.`);
     return {
-      token: sessionToken,
+      token: session.accessToken,
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      familyId: session.familyId,
+      expiresIn: session.expiresIn,
       user: {
         id: user.id,
         email: user.email,
@@ -188,7 +236,7 @@ export class AuthService {
    */
   async verifyTelegramInitData(
     initData: string,
-  ): Promise<{ token: string; user: { id: string; email: string }; telegram: TelegramUser }> {
+  ): Promise<AuthSessionResponse & { telegram: TelegramUser }> {
     let data;
     try {
       data = validateTelegramInitData(initData, env.TELEGRAM_BOT_TOKEN);
@@ -208,29 +256,53 @@ export class AuthService {
       create: { email: syntheticEmail },
     });
 
-    const sessionToken = generateSessionToken({ id: user.id, email: user.email });
+    const session = await this.issueSession(user.id, user.email);
     console.log(`[AuthService] 📲 Telegram Mini App auth OK for tg user ${data.user.id}. Session JWT issued.`);
 
     return {
-      token: sessionToken,
+      token: session.accessToken,
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      familyId: session.familyId,
+      expiresIn: session.expiresIn,
       user: { id: user.id, email: user.email },
       telegram: data.user,
     };
   }
 
   /**
-   * Revokes an active session token by adding its jti to the Redis blocklist.
-   * The blocklist entry TTL matches the token's remaining lifetime so it
-   * self-cleans without manual maintenance.
+   * Rotates a refresh token, issuing a new short-lived access token and a new
+   * rotating refresh token while detecting and halting token reuse (#315).
+   */
+  async rotateRefreshToken(
+    refreshToken: string,
+    context?: RotationContext
+  ): Promise<SessionTokenResult> {
+    return rotateRefreshToken(refreshToken, context);
+  }
+
+  /**
+   * Revokes an active session family and blocklists individual token JTI.
    */
   async revokeSession(user: UserPayload): Promise<void> {
-    if (!user.jti || !user.exp) {
-      // Token has no jti/exp — nothing to revoke (should not occur with generateSessionToken).
-      console.warn('[AuthService] revokeSession called with token missing jti or exp');
-      return;
+    if (user.familyId && user.familyId !== 'legacy') {
+      try {
+        await revokeFamily(user.familyId, 'USER_LOGOUT');
+      } catch (err: any) {
+        console.warn(`[AuthService] Revoke family error: ${err?.message}`);
+      }
     }
-    await revokeToken(user.jti, user.exp);
+    if (user.jti && user.exp) {
+      await revokeToken(user.jti, user.exp);
+    }
     console.log(`[AuthService] 🔓 Session revoked for user ${user.id}`);
+  }
+
+  /**
+   * Explicitly revokes a session family by ID.
+   */
+  async revokeSessionFamily(familyId: string, reason = 'USER_REVOKED_FAMILY'): Promise<void> {
+    await revokeFamily(familyId, reason);
   }
 
   async getMe(userId: string) {

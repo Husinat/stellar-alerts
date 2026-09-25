@@ -143,6 +143,11 @@ export type DexSwapEvent = Prisma.DexSwapEventModel
  */
 export type SecurityAuditLog = Prisma.SecurityAuditLogModel
 /**
+ * Model NotificationDelivery
+ * 
+ */
+export type NotificationDelivery = Prisma.NotificationDeliveryModel
+/**
  * Model NotificationDeliveryAttempt
  * 
  */
@@ -158,7 +163,12 @@ export type DeadLetter = Prisma.DeadLetterModel
  */
 export type DeadLetterAudit = Prisma.DeadLetterAuditModel
 /**
- * Model MfaRecoveryCode
+ * Model RefreshSession
  * 
  */
-export type MfaRecoveryCode = Prisma.MfaRecoveryCodeModel
+export type RefreshSession = Prisma.RefreshSessionModel
+/**
+ * Model RefreshTokenHistory
+ * 
+ */
+export type RefreshTokenHistory = Prisma.RefreshTokenHistoryModel

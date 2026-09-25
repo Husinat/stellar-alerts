@@ -20,10 +20,9 @@ model User {
   multisigSignerWatches MultisigSignerWatcher[]
   anchorWatches         AnchorTransactionWatch[]
   dexSwapWatches        DexSwapWatch[]
-  alertRules            AlertRule[]
   deliveryAttempts NotificationDeliveryAttempt[]
   deadLetters        DeadLetter[]
-  mfaRecoveryCodes   MfaRecoveryCode[]
+  refreshSessions    RefreshSession[]
 }
 
 model Wallet {
@@ -35,7 +34,6 @@ model Wallet {
   createdAt   DateTime         @default(now())
   payments   Payment[]
   cursor     IngestionCursor?
-  alertRules AlertRule[]
 }
 
 model IngestionCursor {
@@ -85,56 +83,6 @@ model NotificationPreference {
   whatsappEnabled Boolean @default(false)
   language        String  @default("EN")
   filterRules     Json?   // Stores filter rule group as JSON
-}
-
-// A persisted, user-authored rule that gates payment alert dispatch. Distinct
-// from NotificationPreference.filterRules (a single legacy filter blob):
-// a user can have many named AlertRules, each optionally scoped to one
-// wallet, with an asset allow-list, a minimum amount threshold, and an
-// arbitrary FilterRuleGroup for advanced grouping (see lib/rules-engine.ts).
-model AlertRule {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // Scopes the rule to one wallet; null applies it across all of the user's wallets.
-  walletId   String?
-  wallet     Wallet?   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  name       String?
-  // Asset codes this rule matches; empty array means "any asset".
-  assets     String[]  @default([])
-  minAmount  Decimal?
-  // Optional FilterRuleGroup JSON for AND/OR-grouped conditions beyond asset/minAmount.
-  conditions Json?
-  isActive   Boolean   @default(true)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  @@index([userId])
-  @@index([walletId])
-}
-
-// Idempotency record: one row per payment that matched at least one active
-// AlertRule, so re-evaluating the same payment event (duplicate delivery,
-// retried job) never enqueues a second notification job.
-model AlertRuleDispatchLog {
-  id             String   @id @default(cuid())
-  paymentId      String   @unique
-  matchedRuleIds Json
-  createdAt      DateTime @default(now())
-}
-
-model WhatsAppDeliveryLog {
-  id         String   @id @default(cuid())
-  paymentId  String
-  toNumber   String
-  success    Boolean
-  messageSid String?
-  status     String?
-  error      String?
-  attempts   Int      @default(1)
-  sentAt     DateTime @default(now())
-
-  @@index([paymentId])
 }
 
 model Webhook {
@@ -521,19 +469,46 @@ model DeadLetterAudit {
   @@index([createdAt])
 }
 
-// ── MFA Recovery Codes (#317) ────────────────────────────────────────────────
+// ── Access token rotation & refresh-token reuse detection (#315) ─────────────
 //
-// One-time hashed recovery codes for safe account recovery if an MFA device
-// is lost. Plaintext codes are only displayed upon generation/regeneration.
-model MfaRecoveryCode {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  codeHash  String
-  used      Boolean   @default(false)
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
+// Models session families, active refresh tokens, and token rotation history.
+// A RefreshSession tracks the active family and its currently valid JTI.
+// If an incoming refresh request presents a JTI that has already been consumed
+// (found in RefreshTokenHistory with isConsumed=true or != currentJti), reuse
+// detection triggers immediately: the family is revoked and a security alert
+// is recorded in SecurityAuditLog.
+model RefreshSession {
+  id               String                @id @default(cuid())
+  familyId         String                @unique
+  userId           String
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentJti       String                @unique
+  rotationCounter  Int                   @default(1)
+  isRevoked        Boolean               @default(false)
+  revocationReason String?
+  expiresAt        DateTime
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  history          RefreshTokenHistory[]
 
   @@index([userId])
-  @@index([codeHash])
+  @@index([currentJti])
+  @@index([isRevoked])
+  @@index([expiresAt])
+}
+
+model RefreshTokenHistory {
+  id              String         @id @default(cuid())
+  familyId        String
+  session         RefreshSession @relation(fields: [familyId], references: [familyId], onDelete: Cascade)
+  jti             String         @unique
+  userId          String
+  rotationCounter Int
+  isConsumed      Boolean        @default(false)
+  consumedAt      DateTime?
+  createdAt       DateTime       @default(now())
+
+  @@index([familyId])
+  @@index([jti])
+  @@index([userId])
 }

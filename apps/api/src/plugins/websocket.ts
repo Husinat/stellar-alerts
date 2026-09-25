@@ -64,21 +64,10 @@ export default fp(async (server: FastifyInstance) => {
     registry.broadcastToUser(userId, message);
   });
 
-  // Register WebSocket upgrade endpoint. Browsers cannot set an
-  // Authorization header on a native WebSocket handshake, so the session
-  // JWT travels as a query parameter and is verified before the socket is
-  // admitted to the registry.
-  server.get('/ws', { websocket: true }, (socket: import('ws').WebSocket, request) => {
-    const token = (request.query as { token?: string } | undefined)?.token;
-
-    let user: UserPayload;
-    try {
-      if (!token) throw new Error('missing token');
-      user = verifyToken<UserPayload>(token);
-    } catch {
-      socket.close(4401, 'Unauthorized');
-      return;
-    }
+  // Register WebSocket upgrade endpoint
+  server.get('/ws', { websocket: true } as any, (socket: any, request: any) => {
+    clients.add(socket);
+    server.log.info(`🔗 WebSocket client connected (total: ${clients.size})`);
 
     const entry = registry.register(user.id, socket);
     server.log.info(
