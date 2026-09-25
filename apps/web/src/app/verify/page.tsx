@@ -29,7 +29,7 @@ function VerifyContent() {
           if (isMounted) {
             setStatus('success');
             setTimeout(() => {
-              router.push('/');
+              router.push('/dashboard');
             }, 1200);
           }
         } else {

@@ -22,6 +22,7 @@ vi.mock('../../auth/mfa.service', () => {
 
 import { notificationsService } from '../notifications.service';
 import { prisma } from '../../../lib/prisma';
+import { decryptPersonalField } from '../../../utils/privacy';
 
 describe('NotificationsService.sendTestPing', () => {
   const originalEnv = process.env;
@@ -103,10 +104,71 @@ describe('NotificationsService.updatePreferences', () => {
   it('persists preferences when MFA is not enabled', async () => {
     await notificationsService.updatePreferences('user-1', { telegramChatId: 'chat-1', telegramEnabled: true });
 
-    expect(prisma.notificationPreference.upsert).toHaveBeenCalledWith({
-      where: { userId: 'user-1' },
-      create: { userId: 'user-1', telegramChatId: 'chat-1', telegramEnabled: true },
-      update: { telegramChatId: 'chat-1', telegramEnabled: true },
+    // telegramChatId is encrypted at rest (see #314), so assert everything
+    // else exactly and only check the chat ID round-trips through the vault
+    // rather than matching it as plaintext.
+    const call = (prisma.notificationPreference.upsert as any).mock.calls[0][0];
+    expect(call.where).toEqual({ userId: 'user-1' });
+    expect(call.create).toMatchObject({ userId: 'user-1', telegramEnabled: true });
+    expect(call.update).toMatchObject({ telegramEnabled: true });
+    expect(decryptPersonalField(call.create.telegramChatId)).toBe('chat-1');
+    expect(decryptPersonalField(call.update.telegramChatId)).toBe('chat-1');
+  });
+});
+
+describe('NotificationsService whatsapp opt-in/opt-out', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (prisma.notificationPreference.findUnique as any).mockResolvedValue(null);
+  });
+
+  it('rejects an enable request with no number on file and none provided', async () => {
+    await expect(
+      notificationsService.updatePreferences('user-1', { whatsappEnabled: true }),
+    ).rejects.toThrow('A valid WhatsApp number is required to enable WhatsApp notifications');
+
+    expect(prisma.notificationPreference.upsert).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed WhatsApp number regardless of enabled state', async () => {
+    await expect(
+      notificationsService.updatePreferences('user-1', { whatsappNumber: 'not-a-number' }),
+    ).rejects.toThrow('Invalid WhatsApp number');
+
+    expect(prisma.notificationPreference.upsert).not.toHaveBeenCalled();
+  });
+
+  it('accepts opt-in with a valid E.164 number and persists it', async () => {
+    await notificationsService.updatePreferences('user-1', {
+      whatsappEnabled: true,
+      whatsappNumber: '+14155551234',
     });
+
+    expect(prisma.notificationPreference.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'user-1' },
+        update: expect.objectContaining({ whatsappEnabled: true, whatsappNumber: '+14155551234' }),
+      }),
+    );
+  });
+
+  it('accepts opt-in referencing a number already saved from a prior update', async () => {
+    (prisma.notificationPreference.findUnique as any).mockResolvedValue({
+      whatsappNumber: '+14155551234',
+    });
+
+    await notificationsService.updatePreferences('user-1', { whatsappEnabled: true });
+
+    expect(prisma.notificationPreference.upsert).toHaveBeenCalled();
+  });
+
+  it('allows opting out without providing or validating a number', async () => {
+    await notificationsService.updatePreferences('user-1', { whatsappEnabled: false });
+
+    expect(prisma.notificationPreference.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ whatsappEnabled: false }),
+      }),
+    );
   });
 });

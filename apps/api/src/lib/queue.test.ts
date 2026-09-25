@@ -7,6 +7,36 @@ const { MockQueueAdd, MockQueueEventsOn, MockWorker } = vi.hoisted(() => ({
   MockWorker: vi.fn(function() {}),
 }));
 
+const mockRedisStore = new Map<string, string>();
+
+vi.mock('ioredis', () => {
+  const RedisMock = vi.fn().mockImplementation(() => ({
+    set: vi.fn(async (key: string, value: string, ...rest: any[]) => {
+      const hasNx = rest.some((arg) => typeof arg === 'string' && arg.toUpperCase() === 'NX');
+      if (hasNx && mockRedisStore.has(key)) {
+        return null;
+      }
+      mockRedisStore.set(key, value);
+      return 'OK';
+    }),
+    get: vi.fn(async (key: string) => mockRedisStore.get(key) ?? null),
+    eval: vi.fn(async (_script: string, _numkeys: number, key: string, value: string) => {
+      if (mockRedisStore.get(key) === value) {
+        mockRedisStore.delete(key);
+        return 1;
+      }
+      return 0;
+    }),
+    on: vi.fn(),
+  }));
+  return { default: RedisMock };
+});
+
+vi.mock('./redis', async () => {
+  const { default: Redis } = await import('ioredis');
+  return { redis: new Redis() };
+});
+
 // We mock bullmq before importing queue
 vi.mock('bullmq', () => {
   return {
@@ -32,6 +62,20 @@ vi.mock('./prisma', () => {
       payment: {
         findUnique: vi.fn(),
       },
+      whatsAppDeliveryLog: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({}),
+      },
+      notificationDeliveryAttempt: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        count: vi.fn().mockResolvedValue(0),
+        create: vi.fn().mockResolvedValue({ id: 'attempt-1' }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      deadLetter: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: 'dl-1' }),
+      },
     },
   };
 });
@@ -39,6 +83,22 @@ vi.mock('./prisma', () => {
 vi.mock('../utils/discord', () => {
   return {
     dispatchDiscordAlert: vi.fn().mockResolvedValue(true),
+  };
+});
+
+const { MockWhatsAppInvalidNumberError } = vi.hoisted(() => ({
+  MockWhatsAppInvalidNumberError: class WhatsAppInvalidNumberError extends Error {
+    constructor(number: string) {
+      super(`"${number}" is not a valid E.164 WhatsApp number`);
+      this.name = 'WhatsAppInvalidNumberError';
+    }
+  },
+}));
+
+vi.mock('../utils/whatsapp', () => {
+  return {
+    dispatchWhatsAppAlert: vi.fn().mockResolvedValue({ success: true, messageSid: 'SM123', status: 'queued', attempts: 1 }),
+    WhatsAppInvalidNumberError: MockWhatsAppInvalidNumberError,
   };
 });
 
@@ -62,10 +122,12 @@ vi.mock('resend', () => {
 
 import { alertQueue, dlqQueue, paymentAlertWorkerProcessor, failedJobHandler, createRedisConnectionConfig } from './queue';
 import { prisma } from './prisma';
+import { dispatchWhatsAppAlert } from '../utils/whatsapp';
 
 describe('Queue DLQ routing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRedisStore.clear();
   });
 
   it('routes to DLQ when job fails after max attempts', async () => {
@@ -133,6 +195,7 @@ describe('Redis Sentinel Connection Configuration', () => {
 describe('Telegram Dispatcher Worker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRedisStore.clear();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
   });
 
@@ -196,5 +259,129 @@ describe('Telegram Dispatcher Worker', () => {
     });
 
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('WhatsApp Dispatcher Worker', () => {
+  const originalEnv = process.env;
+  const jobData = {
+    paymentId: 'pay-wa-1',
+    amount: '10',
+    asset: 'XLM',
+    fromAddress: 'GABC...',
+    txHash: 'hash-wa-1',
+    walletId: 'wallet-wa-1',
+    receivedAt: new Date().toISOString(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = {
+      ...originalEnv,
+      TWILIO_ACCOUNT_SID: 'AC_test',
+      TWILIO_AUTH_TOKEN: 'test_token',
+      TWILIO_WHATSAPP_FROM: '+14155238886',
+    };
+    (prisma.whatsAppDeliveryLog.findFirst as any).mockResolvedValue(null);
+    (dispatchWhatsAppAlert as any).mockResolvedValue({
+      success: true,
+      messageSid: 'SM123',
+      status: 'queued',
+      attempts: 1,
+    });
+  });
+
+  it('dispatches and logs a successful WhatsApp alert when opted in and Twilio is configured', async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({
+      id: jobData.paymentId,
+      wallet: {
+        user: {
+          notifyPrefs: { whatsappEnabled: true, whatsappNumber: '+14155551234' },
+        },
+      },
+    });
+
+    await paymentAlertWorkerProcessor({ data: jobData });
+
+    expect(dispatchWhatsAppAlert).toHaveBeenCalledWith(
+      '+14155551234',
+      jobData,
+      { accountSid: 'AC_test', authToken: 'test_token', fromNumber: '+14155238886' },
+    );
+    expect(prisma.whatsAppDeliveryLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        paymentId: jobData.paymentId,
+        toNumber: '+14155551234',
+        success: true,
+        messageSid: 'SM123',
+      }),
+    });
+  });
+
+  it('does not dispatch when whatsappEnabled is false', async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({
+      id: jobData.paymentId,
+      wallet: {
+        user: {
+          notifyPrefs: { whatsappEnabled: false, whatsappNumber: '+14155551234' },
+        },
+      },
+    });
+
+    await paymentAlertWorkerProcessor({ data: jobData });
+
+    expect(dispatchWhatsAppAlert).not.toHaveBeenCalled();
+  });
+
+  it('does not dispatch when Twilio credentials are not configured', async () => {
+    delete process.env.TWILIO_ACCOUNT_SID;
+    (prisma.payment.findUnique as any).mockResolvedValue({
+      id: jobData.paymentId,
+      wallet: {
+        user: {
+          notifyPrefs: { whatsappEnabled: true, whatsappNumber: '+14155551234' },
+        },
+      },
+    });
+
+    await paymentAlertWorkerProcessor({ data: jobData });
+
+    expect(dispatchWhatsAppAlert).not.toHaveBeenCalled();
+  });
+
+  it('skips dispatch for a duplicate job once a successful delivery is already logged', async () => {
+    (prisma.whatsAppDeliveryLog.findFirst as any).mockResolvedValue({ id: 'log-1', success: true });
+    (prisma.payment.findUnique as any).mockResolvedValue({
+      id: jobData.paymentId,
+      wallet: {
+        user: {
+          notifyPrefs: { whatsappEnabled: true, whatsappNumber: '+14155551234' },
+        },
+      },
+    });
+
+    await paymentAlertWorkerProcessor({ data: jobData });
+
+    expect(dispatchWhatsAppAlert).not.toHaveBeenCalled();
+    expect(prisma.whatsAppDeliveryLog.create).not.toHaveBeenCalled();
+  });
+
+  it('logs an invalid-number failure without throwing when the stored number is malformed', async () => {
+    const { WhatsAppInvalidNumberError } = await import('../utils/whatsapp');
+    (dispatchWhatsAppAlert as any).mockRejectedValue(new WhatsAppInvalidNumberError('not-a-number'));
+    (prisma.payment.findUnique as any).mockResolvedValue({
+      id: jobData.paymentId,
+      wallet: {
+        user: {
+          notifyPrefs: { whatsappEnabled: true, whatsappNumber: 'not-a-number' },
+        },
+      },
+    });
+
+    await expect(paymentAlertWorkerProcessor({ data: jobData })).resolves.not.toThrow();
+
+    expect(prisma.whatsAppDeliveryLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ success: false, attempts: 0 }),
+    });
   });
 });

@@ -45,6 +45,16 @@ export class NotificationsController {
         });
       }
 
+      if (
+        error.message.startsWith('Invalid WhatsApp number') ||
+        error.message.startsWith('A valid WhatsApp number is required')
+      ) {
+        return reply.status(400).send({
+          error: 'Invalid WhatsApp preferences',
+          message: error.message,
+        });
+      }
+
       return reply.status(500).send({
         error: 'Failed to update preferences',
         message: error.message,

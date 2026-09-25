@@ -1,3 +1,5 @@
+import { Client } from 'pg';
+import { resolvePoolConfig } from '../apps/api/src/lib/db-pool';
 import { switchDatabaseUrl } from '../apps/api/src/lib/prisma';
 
 export interface DRConfig {
@@ -55,23 +57,38 @@ export function simulateDNSBlackhole(enable: boolean = true): void {
 }
 
 /**
- * Checks primary region health (Postgres / Redis response ping).
+ * Probes Postgres with `SELECT 1`, honoring the configured health-check timeout.
+ */
+export async function probePrimaryDatabase(
+  databaseUrl: string,
+  timeoutMs: number,
+): Promise<boolean> {
+  const poolConfig = resolvePoolConfig(databaseUrl);
+  const client = new Client({
+    connectionString: poolConfig.connectionString,
+    connectionTimeoutMillis: timeoutMs,
+  });
+
+  try {
+    await client.connect();
+    await client.query('SELECT 1');
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await client.end().catch(() => undefined);
+  }
+}
+
+/**
+ * Checks primary region health (Postgres response ping).
  */
 export async function checkPrimaryHealth(config: DRConfig = defaultConfig): Promise<boolean> {
   if (isBlackholed) {
     return false;
   }
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), config.healthCheckTimeoutMs);
-
-    // Mock check or db connection probe
-    clearTimeout(timeout);
-    return true;
-  } catch (err) {
-    return false;
-  }
+  return probePrimaryDatabase(config.primaryDatabaseUrl, config.healthCheckTimeoutMs);
 }
 
 /**
@@ -143,4 +160,42 @@ export function resetDRState(config: DRConfig = defaultConfig): void {
     activeDatabaseUrl: config.primaryDatabaseUrl,
     activeRedisUrl: config.primaryRedisUrl,
   };
+}
+
+/**
+ * Long-running failover monitor that probes primary health on an interval and
+ * promotes the secondary database when the outage threshold is reached.
+ */
+export class FailoverManager {
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private readonly probe: () => Promise<boolean>;
+
+  constructor(
+    private readonly config: DRConfig = defaultConfig,
+    probeHealth?: () => Promise<boolean>,
+  ) {
+    this.probe = probeHealth ?? (() => checkPrimaryHealth(this.config));
+  }
+
+  async evaluatePromotion(): Promise<DRStatus> {
+    return monitorAndFailover(this.config, this.probe);
+  }
+
+  start(probeIntervalMs: number = defaultConfig.healthCheckTimeoutMs): void {
+    this.stop();
+    this.timer = setInterval(() => {
+      void this.evaluatePromotion();
+    }, probeIntervalMs);
+  }
+
+  stop(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+
+  getStatus(): DRStatus {
+    return getDRStatus();
+  }
 }

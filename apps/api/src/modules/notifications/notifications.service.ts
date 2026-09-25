@@ -6,6 +6,7 @@
 
 import { prisma } from '../../lib/prisma';
 import { mfaService } from '../auth/mfa.service';
+import { encryptPersonalField, decryptPersonalField } from '../../utils/privacy';
 
 export interface NotificationPreferences {
   telegramChatId?: string;
@@ -43,14 +44,20 @@ export class NotificationsService {
       }
     }
 
-    // Update preferences
+    const dataToSave = {
+      ...preferences,
+      telegramChatId: preferences.telegramChatId ? encryptPersonalField(preferences.telegramChatId) : preferences.telegramChatId,
+      whatsappNumber: preferences.whatsappNumber ? encryptPersonalField(preferences.whatsappNumber) : preferences.whatsappNumber,
+    };
+
+    // Update preferences with encrypted PII (#314)
     await prisma.notificationPreference.upsert({
       where: { userId },
       create: {
         userId,
-        ...preferences,
+        ...dataToSave,
       },
-      update: preferences,
+      update: dataToSave,
     });
 
     console.log(`[NotificationsService] ✅ Preferences updated for user ${userId}`);
@@ -62,9 +69,15 @@ export class NotificationsService {
    * @param userId - User ID
    */
   async getPreferences(userId: string) {
-    return prisma.notificationPreference.findUnique({
+    const pref = await prisma.notificationPreference.findUnique({
       where: { userId },
     });
+    if (!pref) return null;
+    return {
+      ...pref,
+      telegramChatId: decryptPersonalField(pref.telegramChatId),
+      whatsappNumber: decryptPersonalField(pref.whatsappNumber),
+    };
   }
 
   /**
@@ -89,6 +102,9 @@ export class NotificationsService {
       throw new Error('No Telegram chat ID is linked for this user yet');
     }
 
+    // telegramChatId is stored encrypted (see #314) — decrypt before use.
+    const telegramChatId = decryptPersonalField(prefs.telegramChatId);
+
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     if (!botToken) {
       throw new Error('Telegram bot is not configured');
@@ -99,7 +115,7 @@ export class NotificationsService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: prefs.telegramChatId,
+          chat_id: telegramChatId,
           text: '✅ Stellar Alerts test ping — your Telegram alerts are connected.',
         }),
         signal: AbortSignal.timeout(10_000),

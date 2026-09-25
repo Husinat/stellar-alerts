@@ -1,7 +1,9 @@
 import * as StellarSdk from 'stellar-sdk';
+import { env } from '../config/env';
 import { prisma, connectWithRetry } from '../lib/prisma';
 import { stellar, decodeHorizonAsset, parseSacTransferEvent } from '../lib/stellar';
 import { enqueuePaymentAlert } from '../lib/queue';
+import { publishPaymentEvent } from '../lib/realtime';
 import {
   getSorobanLatestLedger,
   loadContractRegistry,
@@ -11,9 +13,26 @@ import {
 } from '../lib/soroban';
 import { withWalletLock } from '../lib/lock';
 import { shouldAlert, PaymentContext } from '../lib/rules-engine';
+import { evaluateAndDispatch, AlertRuleRecord, NormalizedPaymentEvent } from '../lib/alert-rule-evaluator';
 import { MemoryMonitor, MemorySnapshot } from '../utils/memory-monitor';
 import { createLogger } from '../lib/logger';
+import { WorkerLifecycleManager } from '../lib/worker-lifecycle';
 import { trace, SpanStatusCode, TraceFlags } from '@opentelemetry/api';
+
+export const watcherLifecycle = new WorkerLifecycleManager({
+  workerName: 'WatcherWorker',
+  drainTimeoutMs: 10_000,
+  maxInFlight: 20,
+  autoRegisterSignals: true,
+});
+import {
+  BOUNDED_BACKFILL_LIMIT,
+  buildCursorGapClearedUpdate,
+  buildCursorGapUpdate,
+  buildCursorOutageUpdate,
+  buildCursorSuccessUpdate,
+  detectLedgerGap,
+} from '../lib/cursor-recovery';
 
 const tracer = trace.getTracer('watcher-worker');
 
@@ -36,7 +55,8 @@ function registerSupervisorHeartbeat() {
 
 export async function processPaymentRecord(
   wallet: { id: string; publicKey: string; userId?: string },
-  record: any
+  record: any,
+  options: { skipGapCheck?: boolean; previousPagingToken?: string | null } = {}
 ) {
   return tracer.startActiveSpan('watcher.processPaymentRecord', async (span) => {
     try {
@@ -83,40 +103,101 @@ export async function processPaymentRecord(
       span.setAttribute('payment.asset', asset);
 
       const existing = await prisma.payment.findUnique({ where: { txHash } });
-      if (!existing) {
-        const payment = await prisma.payment.create({
-          data: {
-            walletId: wallet.id,
-            txHash,
-            fromAddress,
-            amount: Number(amount),
-            asset,
-            assetIssuer,
-            memo,
-            receivedAt,
-          },
-        });
+      let payment: { id: string } | null = existing;
+      let isNewPayment = false;
 
-        let shouldSendAlert = true;
+      if (!existing) {
+        try {
+          payment = await prisma.payment.create({
+            data: {
+              walletId: wallet.id,
+              txHash,
+              fromAddress,
+              amount: Number(amount),
+              asset,
+              assetIssuer,
+              memo,
+              receivedAt,
+            },
+          });
+          isNewPayment = true;
+        } catch (err: any) {
+          if (err.code === 'P2002') {
+            // A concurrent processor (SSE stream + poll loop, or two
+            // overlapping bounded-backfill passes) inserted this payment
+            // first — reorg-like duplicate delivery, not a real error.
+            // Treat it as already recorded: don't re-alert.
+            log.info({ txHash }, '🔁 Duplicate payment insert raced and lost, skipping (already recorded)');
+            payment = await prisma.payment.findUnique({ where: { txHash } });
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      if (isNewPayment && payment) {
+        if (wallet.userId) {
+          await publishPaymentEvent(wallet.userId, payment);
+        }
+
+        const alertJobPayload = {
+          paymentId: payment.id,
+          txHash,
+          walletId: wallet.id,
+          amount,
+          asset,
+          assetIssuer,
+          fromAddress,
+          receivedAt: receivedAt.toISOString(),
+        };
+
+        // Persisted AlertRule records take priority when a user has any
+        // configured (see lib/alert-rule-evaluator.ts): only a matching
+        // rule enqueues a notification job, and duplicate delivery of the
+        // same payment event is a no-op. Users with no AlertRule rows keep
+        // the legacy NotificationPreference.filterRules gate (or, absent
+        // that too, the historical "always alert" default) unchanged.
+        let dispatched = false;
+        let usedAlertRules = false;
 
         if (wallet.userId) {
-          const notifyPrefs = await prisma.notificationPreference.findUnique({
+          const alertRules = await prisma.alertRule.findMany({
             where: { userId: wallet.userId },
           });
 
-          if ((notifyPrefs as any)?.filterRules) {
-            const paymentContext: PaymentContext = {
+          if (alertRules.length > 0) {
+            usedAlertRules = true;
+            const event: NormalizedPaymentEvent = {
+              paymentId: payment.id,
+              txHash,
+              walletId: wallet.id,
+              userId: wallet.userId,
               amount: Number(amount),
               asset,
+              assetIssuer,
               fromAddress,
               memo,
+              receivedAt: receivedAt.toISOString(),
             };
 
-            shouldSendAlert = shouldAlert((notifyPrefs as any)?.filterRules, paymentContext);
+            const result = await evaluateAndDispatch(event, {
+              findRules: async () => alertRules as unknown as AlertRuleRecord[],
+              hasDispatched: async (paymentId) =>
+                Boolean(await prisma.alertRuleDispatchLog.findUnique({ where: { paymentId } })),
+              recordDispatch: async (paymentId, matchedRuleIds) => {
+                await prisma.alertRuleDispatchLog.create({
+                  data: { paymentId, matchedRuleIds },
+                });
+              },
+              enqueueAlert: async () => enqueuePaymentAlert(alertJobPayload),
+            });
 
-            if (!shouldSendAlert) {
+            dispatched = result.enqueued;
+            span.setAttribute('payment.matchedAlertRules', result.matchedRuleIds.length);
+
+            if (result.matchedRuleIds.length === 0) {
               console.log(
-                `[WatcherWorker] 🔕 Payment filtered by rules for wallet (${wallet.publicKey.substring(
+                `[WatcherWorker] 🔕 No active AlertRule matched for wallet (${wallet.publicKey.substring(
                   0,
                   8
                 )}...): ${amount} ${asset}`
@@ -125,26 +206,55 @@ export async function processPaymentRecord(
           }
         }
 
-        if (shouldSendAlert) {
-          await enqueuePaymentAlert({
-            paymentId: payment.id,
-            txHash,
-            walletId: wallet.id,
-            amount,
-            asset,
-            assetIssuer,
-            fromAddress,
-            receivedAt: receivedAt.toISOString(),
-          });
-          span.setAttribute('payment.enqueued', true);
-        } else {
-          span.setAttribute('payment.enqueued', false);
+        if (!usedAlertRules) {
+          let shouldSendAlert = true;
+
+          if (wallet.userId) {
+            const notifyPrefs = await prisma.notificationPreference.findUnique({
+              where: { userId: wallet.userId },
+            });
+
+            if ((notifyPrefs as any)?.filterRules) {
+              const paymentContext: PaymentContext = {
+                amount: Number(amount),
+                asset,
+                fromAddress,
+                memo,
+              };
+
+              shouldSendAlert = shouldAlert((notifyPrefs as any)?.filterRules, paymentContext);
+
+              if (!shouldSendAlert) {
+                console.log(
+                  `[WatcherWorker] 🔕 Payment filtered by rules for wallet (${wallet.publicKey.substring(
+                    0,
+                    8
+                  )}...): ${amount} ${asset}`
+                );
+              }
+            }
+          }
+
+          if (shouldSendAlert) {
+            await enqueuePaymentAlert(alertJobPayload);
+            dispatched = true;
+          }
         }
+
+        span.setAttribute('payment.enqueued', dispatched);
       }
 
       const pagingToken = record.paging_token || record.pagingToken;
       if (pagingToken) {
-        await saveCursor(wallet.id, pagingToken);
+        const gap = await saveCursor(wallet.id, pagingToken, {
+          skipGapCheck: options.skipGapCheck,
+          previousPagingToken: options.previousPagingToken,
+        });
+        if (gap.hasGap) {
+          span.setAttribute('cursor.gapDetected', true);
+          span.setAttribute('cursor.gapLedgerDelta', gap.ledgerDelta);
+          await recoverFromLedgerGap(wallet);
+        }
       }
 
       span.setStatus({ code: SpanStatusCode.OK });
@@ -164,12 +274,85 @@ const CURSOR_PAGE_SIZE = 50;
 // cannot stall the catch-up run indefinitely
 const MAX_CATCHUP_PAGES = 20;
 
-export async function saveCursor(walletId: string, pagingToken: string) {
+/**
+ * Persists the wallet's latest processed paging token. Unless
+ * `skipGapCheck` is set (used internally while a bounded backfill is
+ * already recovering from a previously detected gap), compares the new
+ * token's ledger sequence against the currently persisted one and flags an
+ * abnormally large jump as a ledger gap (see lib/cursor-recovery.ts) —
+ * surfaced both to the caller (who triggers bounded backfill) and on the
+ * IngestionCursor row itself for operator visibility.
+ */
+export async function saveCursor(
+  walletId: string,
+  pagingToken: string,
+  options: { skipGapCheck?: boolean; previousPagingToken?: string | null } = {},
+) {
+  if (options.skipGapCheck) {
+    await prisma.ingestionCursor.upsert({
+      where: { walletId },
+      create: { walletId, pagingToken },
+      update: { pagingToken, ...buildCursorSuccessUpdate() },
+    });
+    return { hasGap: false, ledgerDelta: 0 };
+  }
+
+  // Callers that already track the wallet's in-flight cursor (the
+  // catch-up/SSE loops) pass it explicitly to avoid a redundant read; other
+  // callers (e.g. a bare processPaymentRecord() call) fall back to reading
+  // the currently persisted token.
+  const previousPagingToken =
+    options.previousPagingToken !== undefined
+      ? options.previousPagingToken
+      : (await prisma.ingestionCursor.findUnique({ where: { walletId } }))?.pagingToken ?? null;
+
+  const gap = detectLedgerGap(previousPagingToken, pagingToken);
+
   await prisma.ingestionCursor.upsert({
     where: { walletId },
     create: { walletId, pagingToken },
-    update: { pagingToken },
+    update: {
+      pagingToken,
+      ...(gap.hasGap ? buildCursorGapUpdate(gap.ledgerDelta) : buildCursorSuccessUpdate()),
+    },
   });
+
+  if (gap.hasGap) {
+    log.warn({ walletId, ledgerDelta: gap.ledgerDelta }, '⚠️ Ledger gap detected in ingestion cursor');
+  }
+
+  return gap;
+}
+
+/**
+ * Recovers from a detected ledger gap with a bounded backfill: reprocesses
+ * the most recent `BOUNDED_BACKFILL_LIMIT` payments for the wallet (rather
+ * than an unbounded replay of unknown gap size), then clears the
+ * gap_detected status. Already-recorded payments within that window are
+ * skipped via the same duplicate-protected insert path as normal ingestion.
+ */
+async function recoverFromLedgerGap(wallet: { id: string; publicKey: string; userId?: string }) {
+  log.warn(
+    { walletId: wallet.id, publicKey: wallet.publicKey.substring(0, 8), limit: BOUNDED_BACKFILL_LIMIT },
+    '🩹 Running bounded backfill to recover from detected ledger gap',
+  );
+
+  const recent = (await stellar.getRecentPayments(wallet.publicKey, BOUNDED_BACKFILL_LIMIT)) as any[];
+  const ascending = [...recent].reverse();
+
+  for (const record of ascending) {
+    await processPaymentRecord(wallet, record, { skipGapCheck: true });
+  }
+
+  await prisma.ingestionCursor.update({
+    where: { walletId: wallet.id },
+    data: buildCursorGapClearedUpdate(),
+  });
+
+  log.info(
+    { walletId: wallet.id, recovered: ascending.length },
+    '✅ Bounded backfill complete, ingestion cursor gap cleared',
+  );
 }
 
 /**
@@ -213,19 +396,39 @@ export async function processWalletPayments(wallet: { id: string; publicKey: str
       let cursor = await ensureCursor(wallet);
 
       for (let page = 0; page < MAX_CATCHUP_PAGES; page++) {
-        const records = (await stellar.getPaymentsSince(
-          wallet.publicKey,
-          cursor,
-          CURSOR_PAGE_SIZE,
-        )) as any[];
+        const result = await stellar.getPaymentsSinceResult(wallet.publicKey, cursor, CURSOR_PAGE_SIZE);
+
+        if (result.allNodesFailed) {
+          // Provider outage: every Horizon failover node errored. Record it
+          // on the cursor for operator visibility and stop this pass without
+          // advancing the cursor — the next poll retries from the same
+          // point, so no data is lost once Horizon recovers.
+          const currentCursor = await prisma.ingestionCursor.findUnique({ where: { walletId: wallet.id } });
+          await prisma.ingestionCursor.update({
+            where: { walletId: wallet.id },
+            data: buildCursorOutageUpdate(result.lastError || 'All Horizon nodes unreachable', currentCursor?.consecutiveFailures ?? 0),
+          });
+          console.warn(
+            `[WatcherWorker] Provider outage for ${wallet.publicKey.substring(0, 8)}...: ${result.lastError}. Will retry next poll.`,
+          );
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.end();
+          return;
+        }
+
+        const records = result.records;
         if (records.length === 0) {
+          await prisma.ingestionCursor.update({
+            where: { walletId: wallet.id },
+            data: buildCursorSuccessUpdate(),
+          });
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
           return;
         }
 
         for (const record of records) {
-          await processPaymentRecord(wallet, record);
+          await processPaymentRecord(wallet, record, { previousPagingToken: cursor });
           if (record.paging_token) {
             cursor = record.paging_token;
           }
@@ -332,6 +535,7 @@ export async function startHorizonSSEStream(
 
       try {
         const cursor = await ensureCursor(wallet);
+        let lastPagingToken: string | null = cursor;
         resetHeartbeat();
 
         const handlers: StreamHandlerOptions = {
@@ -339,9 +543,9 @@ export async function startHorizonSSEStream(
             resetHeartbeat();
             attempts = 1;
             console.log(`[WatcherStream] ⚡ Live SSE stream message received: ${record.type}`);
-            await processPaymentRecord(wallet, record);
+            await processPaymentRecord(wallet, record, { previousPagingToken: lastPagingToken });
             if (record.paging_token) {
-              await saveCursor(wallet.id, record.paging_token);
+              lastPagingToken = record.paging_token;
             }
           },
           onerror: (error: any) => {
@@ -411,6 +615,28 @@ export function startMemoryMonitor(): MemoryMonitor {
   return monitor;
 }
 
+/**
+ * Concurrently processes wallets using a bounded worker pool to prevent starvation (#309).
+ */
+export async function processWalletsConcurrently(
+  wallets: Array<{ id: string; publicKey: string; userId?: string }>,
+  concurrency = env.WATCHER_WALLET_CONCURRENCY,
+): Promise<void> {
+  const queue = [...wallets];
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const wallet = queue.shift();
+      if (!wallet) break;
+      try {
+        await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
+      } catch (err: any) {
+        console.error(`[WatcherWorker] Error processing wallet ${wallet.publicKey}:`, err.message || err);
+      }
+    }
+  });
+  await Promise.all(workers);
+}
+
 export async function pollOnce() {
   return tracer.startActiveSpan('watcher.pollOnce', async (pollSpan) => {
     try {
@@ -420,13 +646,7 @@ export async function pollOnce() {
         pollSpan.end();
         return;
       }
-      for (const wallet of wallets) {
-        try {
-          await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
-        } catch (err: any) {
-          console.error(`[WatcherWorker] Error processing wallet ${wallet.publicKey}:`, err.message || err);
-        }
-      }
+      await processWalletsConcurrently(wallets, env.WATCHER_WALLET_CONCURRENCY);
       const contractIds = getActiveContractIds();
       if (contractIds.length > 0) {
         for (const contractId of contractIds) {
@@ -452,54 +672,65 @@ export async function runWatcher() {
 
   startMemoryMonitor();
 
+  watcherLifecycle.registerCleanup('memoryMonitor', () => {
+    memoryMonitor?.stop();
+  });
+  watcherLifecycle.registerCleanup('prisma', async () => {
+    await prisma.$disconnect();
+  });
+
   await loadContractRegistry();
 
   const poll = async () => {
-    return tracer.startActiveSpan('watcher.poll', async (pollSpan) => {
-      try {
-        const wallets = await prisma.wallet.findMany();
-        if (wallets.length === 0) {
-          console.log(
-            "[WatcherWorker] No wallets registered in DB to watch. Waiting for next poll...",
-          );
-          pollSpan.setStatus({ code: SpanStatusCode.OK });
-          pollSpan.end();
-          return;
-        }
-
-        console.log(
-          `[WatcherWorker] Checking ${wallets.length} registered wallet(s)...`,
-        );
-        for (const wallet of wallets) {
-          await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
-        }
-
-        const contractIds = getActiveContractIds();
-        if (contractIds.length > 0) {
-          console.log(
-            `[WatcherWorker] Processing ${contractIds.length} Soroban contract subscriptions...`,
-          );
-          for (const contractId of contractIds) {
-            await processSorobanContractEvents(contractId);
+    return watcherLifecycle.runTask(async () => {
+      return tracer.startActiveSpan('watcher.poll', async (pollSpan) => {
+        try {
+          const wallets = await prisma.wallet.findMany();
+          if (wallets.length === 0) {
+            console.log(
+              "[WatcherWorker] No wallets registered in DB to watch. Waiting for next poll...",
+            );
+            pollSpan.setStatus({ code: SpanStatusCode.OK });
+            pollSpan.end();
+            return;
           }
+
+          console.log(
+            `[WatcherWorker] Checking ${wallets.length} registered wallet(s)...`,
+          );
+          for (const wallet of wallets) {
+            await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
+          }
+
+          const contractIds = getActiveContractIds();
+          if (contractIds.length > 0) {
+            console.log(
+              `[WatcherWorker] Processing ${contractIds.length} Soroban contract subscriptions...`,
+            );
+            for (const contractId of contractIds) {
+              await processSorobanContractEvents(contractId);
+            }
+          }
+          pollSpan.setStatus({ code: SpanStatusCode.OK });
+        } catch (err) {
+          pollSpan.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+          throw err;
+        } finally {
+          pollSpan.end();
         }
-        pollSpan.setStatus({ code: SpanStatusCode.OK });
-      } catch (err) {
-        pollSpan.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
-        throw err;
-      } finally {
-        pollSpan.end();
-      }
+      });
     });
   };
 
   await poll();
 
-  setInterval(poll, 30000);
+  const pollTimer = setInterval(poll, 30000);
+  watcherLifecycle.trackInterval(pollTimer);
 
-  setInterval(() => {
+  const registryTimer = setInterval(() => {
     loadContractRegistry();
   }, 300000);
+  watcherLifecycle.trackInterval(registryTimer);
 }
 
 async function processSorobanContractEvents(contractId: string) {

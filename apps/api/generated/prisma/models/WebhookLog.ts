@@ -447,14 +447,6 @@ export type WebhookLogUncheckedUpdateManyWithoutWebhookNestedInput = {
   deleteMany?: Prisma.WebhookLogScalarWhereInput | Prisma.WebhookLogScalarWhereInput[]
 }
 
-export type NullableIntFieldUpdateOperationsInput = {
-  set?: number | null
-  increment?: number
-  decrement?: number
-  multiply?: number
-  divide?: number
-}
-
 export type WebhookLogCreateWithoutWebhookInput = {
   id?: string
   statusCode?: number | null

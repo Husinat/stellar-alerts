@@ -36,6 +36,24 @@ export class WalletsController {
     return reply.send({ success: true, wallets });
   }
 
+  async getIngestionStatus(request: FastifyRequest, reply: FastifyReply) {
+    const parsed = deleteWalletSchema.safeParse(request.params);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid parameters', details: parsed.error.format() });
+    }
+
+    const userId = (request as any).user.id;
+    try {
+      const ingestion = await walletsService.getIngestionStatus(userId, parsed.data.id);
+      return reply.send({ success: true, ingestion });
+    } catch (error: any) {
+      if (error.message === 'Wallet not found') {
+        return reply.status(404).send({ error: 'Not Found', message: error.message });
+      }
+      throw error;
+    }
+  }
+
   async deleteWallet(request: FastifyRequest, reply: FastifyReply) {
     const parsed = deleteWalletSchema.safeParse(request.params);
     if (!parsed.success) {

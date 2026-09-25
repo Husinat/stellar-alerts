@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { requestLinkSchema, verifyLinkSchema, telegramInitDataSchema } from './auth.schema';
+import { requestLinkSchema, verifyLinkSchema, telegramInitDataSchema, didChallengeSchema, didVerifySchema } from './auth.schema';
 import { authService } from './auth.service';
+import { mfaService } from './mfa.service';
 import { TelegramInitDataError } from '../../utils/telegram';
 import { createPublicKey, verify as cryptoVerify } from 'crypto';
 
@@ -93,13 +94,13 @@ export class AuthController {
   }
 
   async requestDIDChallenge(request: FastifyRequest, reply: FastifyReply) {
-    const { did } = (request.body as any) || {};
-    if (!did || typeof did !== 'string') {
-      return reply.status(400).send({ error: 'Invalid DID parameter' });
+    const parsed = didChallengeSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid DID parameter', details: parsed.error.format() });
     }
 
     try {
-      const challengeObj = authService.requestDIDChallenge(did);
+      const challengeObj = await authService.requestDIDChallenge(parsed.data.did);
       return reply.send({ success: true, ...challengeObj });
     } catch (error: any) {
       return reply.status(400).send({ error: error.message });
@@ -107,13 +108,13 @@ export class AuthController {
   }
 
   async verifyDIDAuth(request: FastifyRequest, reply: FastifyReply) {
-    const { did, challenge, signature } = (request.body as any) || {};
-    if (!did || !challenge || !signature) {
-      return reply.status(400).send({ error: 'Missing did, challenge, or signature parameters' });
+    const parsed = didVerifySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Missing or invalid did, challenge, or signature parameters', details: parsed.error.format() });
     }
 
     try {
-      const result = await authService.verifyDIDAuth(did, challenge, signature);
+      const result = await authService.verifyDIDAuth(parsed.data.did, parsed.data.challenge, parsed.data.signature);
       return reply.send({ success: true, ...result });
     } catch (error: any) {
       return reply.status(401).send({ error: 'DID Authentication failed', message: error.message });
@@ -131,9 +132,22 @@ export class AuthController {
       return reply.status(400).send({ error: 'Invalid initData parameter', details: parsed.error.format() });
     }
 
+    const initData = parsed.data.initData.trim();
+    if (!initData.includes('hash=')) {
+      return reply.status(400).send({
+        error: 'Telegram authentication failed',
+        code: 'MISSING_HASH',
+        message: 'initData is missing the HMAC hash field required for WebApp validation.',
+      });
+    }
+
     try {
-      const result = await authService.verifyTelegramInitData(parsed.data.initData);
-      return reply.send({ success: true, ...result });
+      const result = await authService.verifyTelegramInitData(initData);
+      return reply.send({
+        success: true,
+        authMethod: 'telegram_webapp_hmac',
+        ...result,
+      });
     } catch (error: any) {
       if (error instanceof TelegramInitDataError) {
         const status = error.code === 'INVALID_SIGNATURE' || error.code === 'EXPIRED' ? 401 : 400;
@@ -200,7 +214,7 @@ export class AuthController {
   }
 
   /**
-   * Enable MFA - Verify first TOTP token
+   * Enable MFA - Verify first TOTP token and generate recovery codes
    */
   async enableMFA(request: FastifyRequest, reply: FastifyReply) {
     if (!request.user) {
@@ -213,10 +227,11 @@ export class AuthController {
     }
 
     try {
-      await mfaService.enableMFA(request.user.id, token);
+      const result = await mfaService.enableMFA(request.user.id, token);
       return reply.send({
         success: true,
         message: 'MFA enabled successfully',
+        recoveryCodes: result.recoveryCodes,
       });
     } catch (error: any) {
       return reply.status(400).send({ error: 'Failed to enable MFA', message: error.message });
@@ -257,12 +272,89 @@ export class AuthController {
 
     try {
       const enabled = await mfaService.isMFAEnabled(request.user.id);
+      const codeStatus = enabled
+        ? await mfaService.getRecoveryCodeStatus(request.user.id)
+        : { total: 0, remaining: 0 };
+
       return reply.send({
         success: true,
         mfaEnabled: enabled,
+        recoveryCodesRemaining: codeStatus.remaining,
+        recoveryCodesTotal: codeStatus.total,
       });
     } catch (error: any) {
       return reply.status(500).send({ error: 'Failed to check MFA status', message: error.message });
+    }
+  }
+
+  /**
+   * Generate/Regenerate one-time recovery codes (#317)
+   */
+  async generateRecoveryCodes(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    try {
+      const codes = await mfaService.generateRecoveryCodes(request.user.id);
+      return reply.send({
+        success: true,
+        recoveryCodes: codes,
+        message: 'New recovery codes generated. Store them securely; they will not be shown again.',
+      });
+    } catch (error: any) {
+      return reply.status(400).send({ error: 'Failed to generate recovery codes', message: error.message });
+    }
+  }
+
+  /**
+   * Get remaining recovery codes count (#317)
+   */
+  async getRecoveryCodeStatus(request: FastifyRequest, reply: FastifyReply) {
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    try {
+      const status = await mfaService.getRecoveryCodeStatus(request.user.id);
+      return reply.send({
+        success: true,
+        ...status,
+      });
+    } catch (error: any) {
+      return reply.status(500).send({ error: 'Failed to get recovery code status', message: error.message });
+    }
+  }
+
+  /**
+   * Recover account with a one-time recovery code when device is lost (#317)
+   */
+  async recoverAccount(request: FastifyRequest, reply: FastifyReply) {
+    const { email, recoveryCode } = (request.body as any) || {};
+
+    if (!email || typeof email !== 'string') {
+      return reply.status(400).send({ error: 'Missing or invalid email' });
+    }
+    if (!recoveryCode || typeof recoveryCode !== 'string') {
+      return reply.status(400).send({ error: 'Missing or invalid recovery code' });
+    }
+
+    try {
+      const result = await mfaService.recoverAccountWithCode(
+        email,
+        recoveryCode,
+        request.ip,
+      );
+      return reply.send({
+        success: true,
+        ...result,
+      });
+    } catch (error: any) {
+      const isRateLimit = error.message.includes('Too many recovery attempts');
+      return reply.status(isRateLimit ? 429 : 400).send({
+        error: isRateLimit ? 'Too Many Requests' : 'Recovery Failed',
+        message: error.message,
+      });
     }
   }
 }

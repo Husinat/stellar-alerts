@@ -15,8 +15,8 @@ interface SupervisedWorker {
   name: string;
   filename: string;
   child: ChildProcess | null;
-  pingTimer: NodeTimeout | null;
-  pongTimeout: NodeTimeout | null;
+  pingTimer: NodeJS.Timeout | null;
+  pongTimeout: NodeJS.Timeout | null;
   restartCount: number;
 }
 
