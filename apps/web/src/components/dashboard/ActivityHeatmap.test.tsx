@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { ActivityHeatmap, buildActivityHeatmapData } from './ActivityHeatmap';
 
 describe('ActivityHeatmap', () => {
@@ -30,8 +30,10 @@ describe('ActivityHeatmap', () => {
       />
     );
 
-    expect(screen.getByTestId('activity-heatmap-grid')).toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(365);
+    const grid = screen.getByTestId('activity-heatmap-grid');
+    expect(grid).toBeInTheDocument();
+    // Scoped to the grid: the page also has 3 date-range preset buttons.
+    expect(within(grid).getAllByRole('button')).toHaveLength(365);
     expect(screen.getByTestId('activity-heatmap-day-2026-08-29')).toHaveAttribute('data-level', '4');
   });
 

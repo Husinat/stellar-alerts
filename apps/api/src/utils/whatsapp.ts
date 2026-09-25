@@ -80,44 +80,51 @@ function parseRetryAfterMs(headers: Headers | undefined): number | undefined {
   return Number.isFinite(seconds) ? seconds * 1000 : undefined;
 }
 
-import { env } from '../config/env';
-import { fetchWithTimeout } from '../lib/external-request';
-
+/**
+ * Sends a WhatsApp payment-receipt alert via the Twilio WhatsApp API, with
+ * exponential-backoff retries on rate limits (429) and server errors (5xx).
+ */
 export async function dispatchWhatsAppAlert(
   phoneNumber: string,
-  data: AlertJobData,
-  language: string = 'EN',
-  options: { timeoutMs?: number; signal?: AbortSignal } = {},
-): Promise<boolean> {
-  const whatsappApiUrl =
-    process.env.WHATSAPP_API_URL ||
-    `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID || '100000000000000'}/messages`;
-  const whatsappToken = process.env.WHATSAPP_API_TOKEN || 'mock_whatsapp_token';
+  data: WhatsAppAlertData,
+  config: WhatsAppDispatchConfig,
+): Promise<WhatsAppDispatchResult> {
+  const normalized = normalizeWhatsAppNumber(phoneNumber);
+  if (!isValidE164Number(normalized)) {
+    throw new WhatsAppInvalidNumberError(phoneNumber);
+  }
 
-  const payload = buildWhatsAppCloudPayload(phoneNumber, data, language);
-  const timeoutMs = options.timeoutMs ?? env.NOTIFICATION_PROVIDER_TIMEOUT_MS;
+  const maxAttempts = config.maxAttempts ?? 3;
+  const baseDelayMs = config.baseDelayMs ?? 500;
+  const sleep = config.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
 
-  try {
-    const res = await fetchWithTimeout(
-      whatsappApiUrl,
-      {
+  const body = new URLSearchParams({
+    From: `whatsapp:${config.fromNumber}`,
+    To: `whatsapp:${normalized}`,
+    Body: buildWhatsAppMessage(data),
+  });
+  const authHeader = `Basic ${Buffer.from(`${config.accountSid}:${config.authToken}`).toString('base64')}`;
+
+  let lastError: string | undefined;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(`${TWILIO_API_BASE}/Accounts/${config.accountSid}/Messages.json`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${whatsappToken}`,
-          'Content-Type': 'application/json',
+          Authorization: authHeader,
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify(payload),
-      },
-      timeoutMs,
-      options.signal,
-      'WhatsApp',
-    );
+        body: body.toString(),
+      });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.warn(`[WhatsAppWorker] Cloud API returned error ${res.status}: ${errorText}`);
-      return false;
-    }
+      const json: any = await response.json();
+
+      if (response.ok) {
+        return { success: true, messageSid: json.sid, status: json.status, attempts: attempt };
+      }
+
+      lastError = json.message || `Twilio responded with status ${response.status}`;
 
       const retryable = response.status === 429 || response.status >= 500;
       if (!retryable || attempt === maxAttempts) {

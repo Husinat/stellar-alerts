@@ -144,12 +144,13 @@ describe('NotificationsService whatsapp opt-in/opt-out', () => {
       whatsappNumber: '+14155551234',
     });
 
-    expect(prisma.notificationPreference.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { userId: 'user-1' },
-        update: expect.objectContaining({ whatsappEnabled: true, whatsappNumber: '+14155551234' }),
-      }),
-    );
+    // whatsappNumber is encrypted at rest (see #314); assert everything
+    // else exactly and check the number round-trips through the vault
+    // rather than matching it as plaintext.
+    const call = (prisma.notificationPreference.upsert as any).mock.calls[0][0];
+    expect(call.where).toEqual({ userId: 'user-1' });
+    expect(call.update).toMatchObject({ whatsappEnabled: true });
+    expect(decryptPersonalField(call.update.whatsappNumber)).toBe('+14155551234');
   });
 
   it('accepts opt-in referencing a number already saved from a prior update', async () => {

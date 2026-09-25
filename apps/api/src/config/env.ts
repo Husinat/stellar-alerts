@@ -48,6 +48,9 @@ const envSchema = z.object({
   PROVIDER_RATE_BUDGET_WEBHOOK: z.coerce.number().int().positive().optional().default(50),
   PROVIDER_RATE_BUDGET_EMAIL: z.coerce.number().int().positive().optional().default(10),
   WALLET_BURST_ALLOWANCE: z.coerce.number().int().positive().optional().default(20),
+  // Wasm contract upload/analysis limits for the wasm-analyzer module.
+  WASM_ANALYZER_MAX_UPLOAD_BYTES: z.coerce.number().int().positive().optional().default(5 * 1024 * 1024),
+  WASM_ANALYZER_TIMEOUT_MS: z.coerce.number().int().positive().optional().default(5000),
 });
 export type Env = z.infer<typeof envSchema>;
 
