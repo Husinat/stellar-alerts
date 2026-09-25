@@ -21,3 +21,11 @@ export const didVerifySchema = z.object({
   challenge: z.string().min(1).max(4096),
   signature: z.string().min(1).max(8192),
 });
+
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1),
+});
+
+export const revokeSessionSchema = z.object({
+  familyId: z.string().optional(),
+});

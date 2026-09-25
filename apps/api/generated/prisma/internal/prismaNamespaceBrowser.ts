@@ -76,10 +76,12 @@ export const ModelName = {
   SorobanTopicIndexCursor: 'SorobanTopicIndexCursor',
   DexSwapEvent: 'DexSwapEvent',
   SecurityAuditLog: 'SecurityAuditLog',
+  NotificationDelivery: 'NotificationDelivery',
   NotificationDeliveryAttempt: 'NotificationDeliveryAttempt',
   DeadLetter: 'DeadLetter',
   DeadLetterAudit: 'DeadLetterAudit',
-  MfaRecoveryCode: 'MfaRecoveryCode'
+  RefreshSession: 'RefreshSession',
+  RefreshTokenHistory: 'RefreshTokenHistory'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -447,9 +449,30 @@ export const SecurityAuditLogScalarFieldEnum = {
 export type SecurityAuditLogScalarFieldEnum = (typeof SecurityAuditLogScalarFieldEnum)[keyof typeof SecurityAuditLogScalarFieldEnum]
 
 
+export const NotificationDeliveryScalarFieldEnum = {
+  id: 'id',
+  deliveryKey: 'deliveryKey',
+  paymentId: 'paymentId',
+  channel: 'channel',
+  destination: 'destination',
+  userId: 'userId',
+  status: 'status',
+  currentAttempt: 'currentAttempt',
+  maxAttempts: 'maxAttempts',
+  lastError: 'lastError',
+  deliveredAt: 'deliveredAt',
+  terminalAt: 'terminalAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type NotificationDeliveryScalarFieldEnum = (typeof NotificationDeliveryScalarFieldEnum)[keyof typeof NotificationDeliveryScalarFieldEnum]
+
+
 export const NotificationDeliveryAttemptScalarFieldEnum = {
   id: 'id',
   deliveryKey: 'deliveryKey',
+  deliveryId: 'deliveryId',
   paymentId: 'paymentId',
   channel: 'channel',
   destination: 'destination',
@@ -496,16 +519,34 @@ export const DeadLetterAuditScalarFieldEnum = {
 export type DeadLetterAuditScalarFieldEnum = (typeof DeadLetterAuditScalarFieldEnum)[keyof typeof DeadLetterAuditScalarFieldEnum]
 
 
-export const MfaRecoveryCodeScalarFieldEnum = {
+export const RefreshSessionScalarFieldEnum = {
   id: 'id',
+  familyId: 'familyId',
   userId: 'userId',
-  codeHash: 'codeHash',
-  used: 'used',
-  usedAt: 'usedAt',
+  currentJti: 'currentJti',
+  rotationCounter: 'rotationCounter',
+  isRevoked: 'isRevoked',
+  revocationReason: 'revocationReason',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type RefreshSessionScalarFieldEnum = (typeof RefreshSessionScalarFieldEnum)[keyof typeof RefreshSessionScalarFieldEnum]
+
+
+export const RefreshTokenHistoryScalarFieldEnum = {
+  id: 'id',
+  familyId: 'familyId',
+  jti: 'jti',
+  userId: 'userId',
+  rotationCounter: 'rotationCounter',
+  isConsumed: 'isConsumed',
+  consumedAt: 'consumedAt',
   createdAt: 'createdAt'
 } as const
 
-export type MfaRecoveryCodeScalarFieldEnum = (typeof MfaRecoveryCodeScalarFieldEnum)[keyof typeof MfaRecoveryCodeScalarFieldEnum]
+export type RefreshTokenHistoryScalarFieldEnum = (typeof RefreshTokenHistoryScalarFieldEnum)[keyof typeof RefreshTokenHistoryScalarFieldEnum]
 
 
 export const SortOrder = {

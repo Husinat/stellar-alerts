@@ -2,6 +2,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthService } from '../auth.service';
 import { generateMagicToken } from '../../../utils/jwt';
 
+const mockRedisStore = new Map<string, string>();
+const mockRedis = vi.hoisted(() => ({
+  set: vi.fn(async (key: string, val: string) => {
+    mockRedisStore.set(key, val);
+    return 'OK';
+  }),
+  get: vi.fn(async (key: string) => {
+    return mockRedisStore.get(key) ?? null;
+  }),
+  del: vi.fn(async (key: string) => {
+    mockRedisStore.delete(key);
+    return 1;
+  }),
+}));
+
 vi.mock('../../../config/env', () => ({
   env: {
     JWT_SECRET: 'test-super-secret-jwt-key-12345',
@@ -17,6 +32,10 @@ vi.mock('../../../lib/prisma', () => ({
   },
 }));
 
+vi.mock('../../../lib/redis', () => ({
+  redis: mockRedis,
+}));
+
 import { prisma } from '../../../lib/prisma';
 
 describe('AuthService', () => {
@@ -25,6 +44,7 @@ describe('AuthService', () => {
   beforeEach(() => {
     authService = new AuthService();
     vi.clearAllMocks();
+    mockRedisStore.clear();
   });
 
   describe('requestMagicLink', () => {
