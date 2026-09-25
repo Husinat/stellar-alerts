@@ -239,6 +239,16 @@ export interface PrismaClient<
   get notificationPreference(): Prisma.NotificationPreferenceDelegate<ExtArgs, { omit: OmitOpts }>;
 
   /**
+   * `prisma.whatsAppDeliveryLog`: Exposes CRUD operations for the **WhatsAppDeliveryLog** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more WhatsAppDeliveryLogs
+    * const whatsAppDeliveryLogs = await prisma.whatsAppDeliveryLog.findMany()
+    * ```
+    */
+  get whatsAppDeliveryLog(): Prisma.WhatsAppDeliveryLogDelegate<ExtArgs, { omit: OmitOpts }>;
+
+  /**
    * `prisma.webhook`: Exposes CRUD operations for the **Webhook** model.
     * Example usage:
     * ```ts

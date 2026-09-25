@@ -85,6 +85,20 @@ model NotificationPreference {
   filterRules     Json?   // Stores filter rule group as JSON
 }
 
+model WhatsAppDeliveryLog {
+  id         String   @id @default(cuid())
+  paymentId  String
+  toNumber   String
+  success    Boolean
+  messageSid String?
+  status     String?
+  error      String?
+  attempts   Int      @default(1)
+  sentAt     DateTime @default(now())
+
+  @@index([paymentId])
+}
+
 model Webhook {
   id                String                   @id @default(cuid())
   userId            String

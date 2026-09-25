@@ -3,6 +3,7 @@ import { env } from '../config/env';
 import { prisma, connectWithRetry } from '../lib/prisma';
 import { stellar, decodeHorizonAsset, parseSacTransferEvent } from '../lib/stellar';
 import { enqueuePaymentAlert } from '../lib/queue';
+import { publishPaymentEvent } from '../lib/realtime';
 import {
   getSorobanLatestLedger,
   loadContractRegistry,
@@ -126,6 +127,10 @@ export async function processPaymentRecord(
       }
 
       if (isNewPayment && payment) {
+        if (wallet.userId) {
+          await publishPaymentEvent(wallet.userId, payment);
+        }
+
         let shouldSendAlert = true;
 
         if (wallet.userId) {

@@ -28,6 +28,15 @@ export interface PaymentDTO {
   receivedAt: Date | string;
 }
 
+export interface DeliveryEventDTO {
+  id: string;
+  webhookId: string;
+  statusCode?: number | null;
+  responseBody?: string | null;
+  error?: string | null;
+  sentAt: Date | string;
+}
+
 export interface NotificationPreferenceDTO {
   id: string;
   userId: string;

@@ -9,10 +9,14 @@ Data flows in one direction:
 ```
 Stellar Network (Horizon SSE + Soroban RPC) → Ingestion Worker → PostgreSQL → Fastify REST API → Next.js Web App
                                                     │
-                                                    └──> BullMQ (Redis) → Telegram / Email / Webhook Alerts
+                                                    ├──> BullMQ (Redis) → Telegram / Email / Webhook Alerts
+                                                    │                            │
+                                                    └──> Redis Pub/Sub ─────────>┴──> WebSocket Plugin → Next.js Web App
 ```
 
 The Next.js web application never communicates with Stellar directly. It consumes the typed Fastify REST API, utilizing shared DTO interfaces exported by `@stellar-alerts/shared`.
+
+Persisted payment and webhook-delivery events also reach the browser live: the watcher worker and the BullMQ webhook dispatcher (separate processes from the API server) publish each event to Redis (`apps/api/src/lib/realtime.ts`), and the API's WebSocket plugin (`apps/api/src/plugins/websocket.ts`) relays it over `/ws` to that event's owning user only. The browser authenticates the handshake with its session JWT as a `?token=` query param (native WebSocket can't set an Authorization header), and the server routes every event by the JWT-verified `userId` it captured at connect time — never by anything the client requests — so one user's socket can never receive another user's events. Each connection gets a small bounded outbound queue (`apps/api/src/lib/clientRegistry.ts`) that preserves delivery order and drops only the oldest entry if it overflows, and the browser client (`apps/web/src/lib/socket.ts`) reconnects automatically with exponential backoff.
 
 ---
 
@@ -102,6 +106,7 @@ stellar-alerts/
 | `/wallets/:id` | DELETE | Yes | Remove a wallet by ID |
 | `/payments` | GET | Yes | Fetch payment transaction history |
 | `/payments/summary`| GET | Yes | Aggregate payment stats (total payments, volume) |
+| `/wasm-analyzer/analyze` | POST | Yes | Upload a Soroban contract WASM binary (`multipart/form-data`, field `file`) for static security analysis — see [§6.1](#61-wasm-analyzer-api) |
 
 ---
 
@@ -151,3 +156,26 @@ The [soroban-indexer.worker.ts](apps/api/src/workers/soroban-indexer.worker.ts) 
 - All Ed25519 public keys are validated against Base32 CRC16-XMODEM checksums.
 - Webhook dispatches include `X-Stellar-Alerts-Signature` headers signed via HMAC SHA256 with 5-minute clock drift tolerance.
 - Fastify server enforces 30-second plugin connection timeouts (`pluginTimeout: 30000`).
+
+### 6.1 WASM Analyzer API
+
+`POST /wasm-analyzer/analyze` wraps the static WASM security analyzer
+(`apps/api/src/utils/wasm-analyzer.ts`) in an authenticated upload endpoint
+so contract binaries can be screened before they're indexed.
+
+- **Auth**: requires a valid session JWT (`Authorization: Bearer <token>`), same as every other module.
+- **Rate limit**: 10 requests/minute per client, in addition to the app-wide global limiter — analysis is real CPU + DB work per call.
+- **Upload**: `multipart/form-data` with a single field named `file`. Accepted `Content-Type`s: `application/wasm`, `application/octet-stream`, `application/x-wasm`; anything else is rejected with `415`.
+- **Size limit**: `WASM_ANALYZER_MAX_UPLOAD_BYTES` (default 5MB) enforced both at the multipart layer and again on the buffered file; violations return `413`.
+- **Timeout**: `WASM_ANALYZER_TIMEOUT_MS` (default 5000ms) bounds the analysis pass; an analysis that doesn't finish in time comes back as `valid: false` with a timeout `parseError` instead of hanging the request.
+- **Response** (`200`) is always structurally the same shape, whether the binary is well-formed, malformed, or flagged as risky:
+  ```json
+  {
+    "success": true,
+    "analysis": { "valid": true, "findings": [...], "riskScore": 0, "stats": { ... } },
+    "meta": { "filename": "contract.wasm", "contentType": "application/wasm", "sizeBytes": 1234, "sha256": "..." },
+    "suspicious": false
+  }
+  ```
+  A malformed binary still returns `200` with `analysis.valid: false` and `analysis.parseError` set — parsing failure is itself a stable, structured finding, not a server error.
+- **Audit logging**: every request (accepted, rejected, or flagged) writes a `SecurityAuditLog` row (`eventType: "WASM_ANALYSIS_UPLOAD"`) capturing the requesting user, upload metadata, SHA-256 digest, and finding codes, so uploads are reviewable after the fact. A logging failure is caught and logged server-side; it never fails the API response.

@@ -10,7 +10,7 @@
 
 **Real-Time Stellar Payment Tracker, Soroban Event Ingestion & Non-Custodial Alert Engine**
 
-Stellar Alerts monitors registered Stellar public wallets in real time for incoming transactions on the Stellar network (Testnet / Mainnet). It records payment history in PostgreSQL and dispatches multi-channel alerts (Telegram, Email, Webhooks) without ever requesting or storing secret keys.
+Stellar Alerts monitors registered Stellar public wallets in real time for incoming transactions on the Stellar network (Testnet / Mainnet). It records payment history in PostgreSQL and dispatches multi-channel alerts (Telegram, WhatsApp, Email, Webhooks) without ever requesting or storing secret keys.
 
 ---
 
@@ -37,7 +37,7 @@ Stellar Alerts monitors registered Stellar public wallets in real time for incom
 ```
 Stellar Network (Horizon SSE + Soroban RPC) → Ingestion Worker → PostgreSQL → Fastify REST API → Next.js Web App
                                                     │
-                                                    └──> BullMQ (Redis) → Telegram / Email / Webhook Alerts
+                                                    └──> BullMQ (Redis) → Telegram / WhatsApp / Email / Webhook Alerts
 ```
 
 For complete technical specifications, database schemas, and data flow details, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
