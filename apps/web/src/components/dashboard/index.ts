@@ -10,3 +10,4 @@ export * from './ActivityHeatmap';
 export * from './NetworkVisualizer3D';
 export * from './AuditWorkspace';
 export * from './EmailTemplatePreview';
+export * from './WalletAlertActivationWizard';
