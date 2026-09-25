@@ -185,6 +185,7 @@ export type WalletWhereInput = {
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   payments?: Prisma.PaymentListRelationFilter
   cursor?: Prisma.XOR<Prisma.IngestionCursorNullableScalarRelationFilter, Prisma.IngestionCursorWhereInput> | null
+  alertRules?: Prisma.AlertRuleListRelationFilter
 }
 
 export type WalletOrderByWithRelationInput = {
@@ -196,6 +197,7 @@ export type WalletOrderByWithRelationInput = {
   user?: Prisma.UserOrderByWithRelationInput
   payments?: Prisma.PaymentOrderByRelationAggregateInput
   cursor?: Prisma.IngestionCursorOrderByWithRelationInput
+  alertRules?: Prisma.AlertRuleOrderByRelationAggregateInput
 }
 
 export type WalletWhereUniqueInput = Prisma.AtLeast<{
@@ -210,6 +212,7 @@ export type WalletWhereUniqueInput = Prisma.AtLeast<{
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   payments?: Prisma.PaymentListRelationFilter
   cursor?: Prisma.XOR<Prisma.IngestionCursorNullableScalarRelationFilter, Prisma.IngestionCursorWhereInput> | null
+  alertRules?: Prisma.AlertRuleListRelationFilter
 }, "id" | "publicKey">
 
 export type WalletOrderByWithAggregationInput = {
@@ -242,6 +245,7 @@ export type WalletCreateInput = {
   user: Prisma.UserCreateNestedOneWithoutWalletsInput
   payments?: Prisma.PaymentCreateNestedManyWithoutWalletInput
   cursor?: Prisma.IngestionCursorCreateNestedOneWithoutWalletInput
+  alertRules?: Prisma.AlertRuleCreateNestedManyWithoutWalletInput
 }
 
 export type WalletUncheckedCreateInput = {
@@ -252,6 +256,7 @@ export type WalletUncheckedCreateInput = {
   createdAt?: Date | string
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutWalletInput
   cursor?: Prisma.IngestionCursorUncheckedCreateNestedOneWithoutWalletInput
+  alertRules?: Prisma.AlertRuleUncheckedCreateNestedManyWithoutWalletInput
 }
 
 export type WalletUpdateInput = {
@@ -262,6 +267,7 @@ export type WalletUpdateInput = {
   user?: Prisma.UserUpdateOneRequiredWithoutWalletsNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutWalletNestedInput
   cursor?: Prisma.IngestionCursorUpdateOneWithoutWalletNestedInput
+  alertRules?: Prisma.AlertRuleUpdateManyWithoutWalletNestedInput
 }
 
 export type WalletUncheckedUpdateInput = {
@@ -272,6 +278,7 @@ export type WalletUncheckedUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutWalletNestedInput
   cursor?: Prisma.IngestionCursorUncheckedUpdateOneWithoutWalletNestedInput
+  alertRules?: Prisma.AlertRuleUncheckedUpdateManyWithoutWalletNestedInput
 }
 
 export type WalletCreateManyInput = {
@@ -334,6 +341,11 @@ export type WalletMinOrderByAggregateInput = {
 export type WalletScalarRelationFilter = {
   is?: Prisma.WalletWhereInput
   isNot?: Prisma.WalletWhereInput
+}
+
+export type WalletNullableScalarRelationFilter = {
+  is?: Prisma.WalletWhereInput | null
+  isNot?: Prisma.WalletWhereInput | null
 }
 
 export type WalletCreateNestedManyWithoutUserInput = {
@@ -406,6 +418,22 @@ export type WalletUpdateOneRequiredWithoutPaymentsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.WalletUpdateToOneWithWhereWithoutPaymentsInput, Prisma.WalletUpdateWithoutPaymentsInput>, Prisma.WalletUncheckedUpdateWithoutPaymentsInput>
 }
 
+export type WalletCreateNestedOneWithoutAlertRulesInput = {
+  create?: Prisma.XOR<Prisma.WalletCreateWithoutAlertRulesInput, Prisma.WalletUncheckedCreateWithoutAlertRulesInput>
+  connectOrCreate?: Prisma.WalletCreateOrConnectWithoutAlertRulesInput
+  connect?: Prisma.WalletWhereUniqueInput
+}
+
+export type WalletUpdateOneWithoutAlertRulesNestedInput = {
+  create?: Prisma.XOR<Prisma.WalletCreateWithoutAlertRulesInput, Prisma.WalletUncheckedCreateWithoutAlertRulesInput>
+  connectOrCreate?: Prisma.WalletCreateOrConnectWithoutAlertRulesInput
+  upsert?: Prisma.WalletUpsertWithoutAlertRulesInput
+  disconnect?: Prisma.WalletWhereInput | boolean
+  delete?: Prisma.WalletWhereInput | boolean
+  connect?: Prisma.WalletWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.WalletUpdateToOneWithWhereWithoutAlertRulesInput, Prisma.WalletUpdateWithoutAlertRulesInput>, Prisma.WalletUncheckedUpdateWithoutAlertRulesInput>
+}
+
 export type WalletCreateWithoutUserInput = {
   id?: string
   publicKey: string
@@ -413,6 +441,7 @@ export type WalletCreateWithoutUserInput = {
   createdAt?: Date | string
   payments?: Prisma.PaymentCreateNestedManyWithoutWalletInput
   cursor?: Prisma.IngestionCursorCreateNestedOneWithoutWalletInput
+  alertRules?: Prisma.AlertRuleCreateNestedManyWithoutWalletInput
 }
 
 export type WalletUncheckedCreateWithoutUserInput = {
@@ -422,6 +451,7 @@ export type WalletUncheckedCreateWithoutUserInput = {
   createdAt?: Date | string
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutWalletInput
   cursor?: Prisma.IngestionCursorUncheckedCreateNestedOneWithoutWalletInput
+  alertRules?: Prisma.AlertRuleUncheckedCreateNestedManyWithoutWalletInput
 }
 
 export type WalletCreateOrConnectWithoutUserInput = {
@@ -468,6 +498,7 @@ export type WalletCreateWithoutCursorInput = {
   createdAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWalletsInput
   payments?: Prisma.PaymentCreateNestedManyWithoutWalletInput
+  alertRules?: Prisma.AlertRuleCreateNestedManyWithoutWalletInput
 }
 
 export type WalletUncheckedCreateWithoutCursorInput = {
@@ -477,6 +508,7 @@ export type WalletUncheckedCreateWithoutCursorInput = {
   label?: string | null
   createdAt?: Date | string
   payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutWalletInput
+  alertRules?: Prisma.AlertRuleUncheckedCreateNestedManyWithoutWalletInput
 }
 
 export type WalletCreateOrConnectWithoutCursorInput = {
@@ -502,6 +534,7 @@ export type WalletUpdateWithoutCursorInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWalletsNestedInput
   payments?: Prisma.PaymentUpdateManyWithoutWalletNestedInput
+  alertRules?: Prisma.AlertRuleUpdateManyWithoutWalletNestedInput
 }
 
 export type WalletUncheckedUpdateWithoutCursorInput = {
@@ -511,6 +544,7 @@ export type WalletUncheckedUpdateWithoutCursorInput = {
   label?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutWalletNestedInput
+  alertRules?: Prisma.AlertRuleUncheckedUpdateManyWithoutWalletNestedInput
 }
 
 export type WalletCreateWithoutPaymentsInput = {
@@ -520,6 +554,7 @@ export type WalletCreateWithoutPaymentsInput = {
   createdAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutWalletsInput
   cursor?: Prisma.IngestionCursorCreateNestedOneWithoutWalletInput
+  alertRules?: Prisma.AlertRuleCreateNestedManyWithoutWalletInput
 }
 
 export type WalletUncheckedCreateWithoutPaymentsInput = {
@@ -529,6 +564,7 @@ export type WalletUncheckedCreateWithoutPaymentsInput = {
   label?: string | null
   createdAt?: Date | string
   cursor?: Prisma.IngestionCursorUncheckedCreateNestedOneWithoutWalletInput
+  alertRules?: Prisma.AlertRuleUncheckedCreateNestedManyWithoutWalletInput
 }
 
 export type WalletCreateOrConnectWithoutPaymentsInput = {
@@ -554,6 +590,7 @@ export type WalletUpdateWithoutPaymentsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutWalletsNestedInput
   cursor?: Prisma.IngestionCursorUpdateOneWithoutWalletNestedInput
+  alertRules?: Prisma.AlertRuleUpdateManyWithoutWalletNestedInput
 }
 
 export type WalletUncheckedUpdateWithoutPaymentsInput = {
@@ -562,6 +599,63 @@ export type WalletUncheckedUpdateWithoutPaymentsInput = {
   publicKey?: Prisma.StringFieldUpdateOperationsInput | string
   label?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  cursor?: Prisma.IngestionCursorUncheckedUpdateOneWithoutWalletNestedInput
+  alertRules?: Prisma.AlertRuleUncheckedUpdateManyWithoutWalletNestedInput
+}
+
+export type WalletCreateWithoutAlertRulesInput = {
+  id?: string
+  publicKey: string
+  label?: string | null
+  createdAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutWalletsInput
+  payments?: Prisma.PaymentCreateNestedManyWithoutWalletInput
+  cursor?: Prisma.IngestionCursorCreateNestedOneWithoutWalletInput
+}
+
+export type WalletUncheckedCreateWithoutAlertRulesInput = {
+  id?: string
+  userId: string
+  publicKey: string
+  label?: string | null
+  createdAt?: Date | string
+  payments?: Prisma.PaymentUncheckedCreateNestedManyWithoutWalletInput
+  cursor?: Prisma.IngestionCursorUncheckedCreateNestedOneWithoutWalletInput
+}
+
+export type WalletCreateOrConnectWithoutAlertRulesInput = {
+  where: Prisma.WalletWhereUniqueInput
+  create: Prisma.XOR<Prisma.WalletCreateWithoutAlertRulesInput, Prisma.WalletUncheckedCreateWithoutAlertRulesInput>
+}
+
+export type WalletUpsertWithoutAlertRulesInput = {
+  update: Prisma.XOR<Prisma.WalletUpdateWithoutAlertRulesInput, Prisma.WalletUncheckedUpdateWithoutAlertRulesInput>
+  create: Prisma.XOR<Prisma.WalletCreateWithoutAlertRulesInput, Prisma.WalletUncheckedCreateWithoutAlertRulesInput>
+  where?: Prisma.WalletWhereInput
+}
+
+export type WalletUpdateToOneWithWhereWithoutAlertRulesInput = {
+  where?: Prisma.WalletWhereInput
+  data: Prisma.XOR<Prisma.WalletUpdateWithoutAlertRulesInput, Prisma.WalletUncheckedUpdateWithoutAlertRulesInput>
+}
+
+export type WalletUpdateWithoutAlertRulesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  publicKey?: Prisma.StringFieldUpdateOperationsInput | string
+  label?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutWalletsNestedInput
+  payments?: Prisma.PaymentUpdateManyWithoutWalletNestedInput
+  cursor?: Prisma.IngestionCursorUpdateOneWithoutWalletNestedInput
+}
+
+export type WalletUncheckedUpdateWithoutAlertRulesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  publicKey?: Prisma.StringFieldUpdateOperationsInput | string
+  label?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  payments?: Prisma.PaymentUncheckedUpdateManyWithoutWalletNestedInput
   cursor?: Prisma.IngestionCursorUncheckedUpdateOneWithoutWalletNestedInput
 }
 
@@ -579,6 +673,7 @@ export type WalletUpdateWithoutUserInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   payments?: Prisma.PaymentUpdateManyWithoutWalletNestedInput
   cursor?: Prisma.IngestionCursorUpdateOneWithoutWalletNestedInput
+  alertRules?: Prisma.AlertRuleUpdateManyWithoutWalletNestedInput
 }
 
 export type WalletUncheckedUpdateWithoutUserInput = {
@@ -588,6 +683,7 @@ export type WalletUncheckedUpdateWithoutUserInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   payments?: Prisma.PaymentUncheckedUpdateManyWithoutWalletNestedInput
   cursor?: Prisma.IngestionCursorUncheckedUpdateOneWithoutWalletNestedInput
+  alertRules?: Prisma.AlertRuleUncheckedUpdateManyWithoutWalletNestedInput
 }
 
 export type WalletUncheckedUpdateManyWithoutUserInput = {
@@ -604,10 +700,12 @@ export type WalletUncheckedUpdateManyWithoutUserInput = {
 
 export type WalletCountOutputType = {
   payments: number
+  alertRules: number
 }
 
 export type WalletCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   payments?: boolean | WalletCountOutputTypeCountPaymentsArgs
+  alertRules?: boolean | WalletCountOutputTypeCountAlertRulesArgs
 }
 
 /**
@@ -627,6 +725,13 @@ export type WalletCountOutputTypeCountPaymentsArgs<ExtArgs extends runtime.Types
   where?: Prisma.PaymentWhereInput
 }
 
+/**
+ * WalletCountOutputType without action
+ */
+export type WalletCountOutputTypeCountAlertRulesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AlertRuleWhereInput
+}
+
 
 export type WalletSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -637,6 +742,7 @@ export type WalletSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs =
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   payments?: boolean | Prisma.Wallet$paymentsArgs<ExtArgs>
   cursor?: boolean | Prisma.Wallet$cursorArgs<ExtArgs>
+  alertRules?: boolean | Prisma.Wallet$alertRulesArgs<ExtArgs>
   _count?: boolean | Prisma.WalletCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["wallet"]>
 
@@ -671,6 +777,7 @@ export type WalletInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   payments?: boolean | Prisma.Wallet$paymentsArgs<ExtArgs>
   cursor?: boolean | Prisma.Wallet$cursorArgs<ExtArgs>
+  alertRules?: boolean | Prisma.Wallet$alertRulesArgs<ExtArgs>
   _count?: boolean | Prisma.WalletCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type WalletIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -686,6 +793,7 @@ export type $WalletPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs
     user: Prisma.$UserPayload<ExtArgs>
     payments: Prisma.$PaymentPayload<ExtArgs>[]
     cursor: Prisma.$IngestionCursorPayload<ExtArgs> | null
+    alertRules: Prisma.$AlertRulePayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1090,6 +1198,7 @@ export interface Prisma__WalletClient<T, Null = never, ExtArgs extends runtime.T
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   payments<T extends Prisma.Wallet$paymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Wallet$paymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PaymentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   cursor<T extends Prisma.Wallet$cursorArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Wallet$cursorArgs<ExtArgs>>): Prisma.Prisma__IngestionCursorClient<runtime.Types.Result.GetResult<Prisma.$IngestionCursorPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  alertRules<T extends Prisma.Wallet$alertRulesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Wallet$alertRulesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AlertRulePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1565,6 +1674,30 @@ export type Wallet$cursorArgs<ExtArgs extends runtime.Types.Extensions.InternalA
    */
   include?: Prisma.IngestionCursorInclude<ExtArgs> | null
   where?: Prisma.IngestionCursorWhereInput
+}
+
+/**
+ * Wallet.alertRules
+ */
+export type Wallet$alertRulesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AlertRule
+   */
+  select?: Prisma.AlertRuleSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AlertRule
+   */
+  omit?: Prisma.AlertRuleOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AlertRuleInclude<ExtArgs> | null
+  where?: Prisma.AlertRuleWhereInput
+  orderBy?: Prisma.AlertRuleOrderByWithRelationInput | Prisma.AlertRuleOrderByWithRelationInput[]
+  cursor?: Prisma.AlertRuleWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AlertRuleScalarFieldEnum | Prisma.AlertRuleScalarFieldEnum[]
 }
 
 /**

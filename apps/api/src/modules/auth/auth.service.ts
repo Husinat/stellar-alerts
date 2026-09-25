@@ -31,6 +31,8 @@ import jwt from 'jsonwebtoken';
 import { redis } from '../../lib/redis';
 
 const DID_CHALLENGE_TTL_SECONDS = 5 * 60;
+// In-memory fallback when Redis is unavailable (degraded mode)
+const degradedAuthStore = new Map<string, { value: string; expiresAt: number }>();
 
 export interface AuthSessionResponse {
   token: string;

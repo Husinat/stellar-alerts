@@ -1,6 +1,7 @@
 import { prisma } from './prisma';
 import { createLogger } from './logger';
 import type { DeliveryChannel } from './delivery';
+import { maskDestination, sanitizePayload } from '../utils/privacy';
 
 const deadLetterLog = createLogger({ module: 'DeadLetter' });
 
@@ -42,7 +43,7 @@ export async function persistDeadLetter(input: DeadLetterCapture): Promise<strin
         userId: input.userId ?? null,
         channel: input.channel,
         destination: input.destination ?? null,
-        payload: (input.payload ?? undefined) as any,
+        payload: (input.payload ? sanitizePayload(input.payload) : undefined) as any,
         error: input.error ? input.error.substring(0, 4000) : 'Unknown error',
         status: 'pending',
       },

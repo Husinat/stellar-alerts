@@ -57,16 +57,29 @@ export function buildDiscordEmbed(data: DiscordAlertData): DiscordEmbedPayload {
   };
 }
 
-export async function dispatchDiscordAlert(webhookUrl: string, data: DiscordAlertData): Promise<boolean> {
+import { env } from '../config/env';
+import { fetchWithTimeout } from '../lib/external-request';
+
+export async function dispatchDiscordAlert(
+  webhookUrl: string,
+  data: DiscordAlertData,
+  options: { timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<boolean> {
   const payload = buildDiscordEmbed(data);
+  const timeoutMs = options.timeoutMs ?? env.NOTIFICATION_PROVIDER_TIMEOUT_MS;
 
   try {
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10_000),
-    });
+    const response = await fetchWithTimeout(
+      webhookUrl,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      timeoutMs,
+      options.signal,
+      'Discord',
+    );
 
     if (!response.ok) {
       console.warn(`[Discord] Webhook responded with status ${response.status} for payment ${data.paymentId}`);

@@ -511,4 +511,4 @@ model RefreshTokenHistory {
   @@index([familyId])
   @@index([jti])
   @@index([userId])
-}
+}

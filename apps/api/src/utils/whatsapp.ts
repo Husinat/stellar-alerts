@@ -1,86 +1,93 @@
-import { AlertJobData } from '../lib/queue';
-
-export type SupportedLanguage = 'EN' | 'ES' | 'PT';
-
-export function normalizeLanguage(lang?: string | null): SupportedLanguage {
-  if (!lang) return 'EN';
-  const upper = lang.trim().toUpperCase();
-  if (upper === 'ES' || upper === 'SPANISH') return 'ES';
-  if (upper === 'PT' || upper === 'PORTUGUESE') return 'PT';
-  return 'EN';
+export interface WhatsAppAlertData {
+  paymentId: string;
+  txHash: string;
+  amount: string;
+  asset: string;
+  assetIssuer?: string | null;
+  fromAddress: string;
+  receivedAt: string;
 }
 
-export function formatWhatsAppMessage(data: AlertJobData, lang: SupportedLanguage = 'EN'): string {
-  switch (lang) {
-    case 'ES':
-      return [
-        '🔔 *Confirmación de Pago Recibido*',
-        `*Monto:* ${data.amount} ${data.asset}`,
-        `*De:* ${data.fromAddress}`,
-        `*Transacción:* ${data.txHash}`,
-        `*Fecha:* ${data.receivedAt}`,
-      ].join('\n');
-    case 'PT':
-      return [
-        '🔔 *Confirmação de Pagamento Recebido*',
-        `*Valor:* ${data.amount} ${data.asset}`,
-        `*De:* ${data.fromAddress}`,
-        `*Transação:* ${data.txHash}`,
-        `*Data:* ${data.receivedAt}`,
-      ].join('\n');
-    case 'EN':
-    default:
-      return [
-        '🔔 *Payment Receipt Confirmation*',
-        `*Amount:* ${data.amount} ${data.asset}`,
-        `*From:* ${data.fromAddress}`,
-        `*Transaction:* ${data.txHash}`,
-        `*Received At:* ${data.receivedAt}`,
-      ].join('\n');
+export interface WhatsAppDispatchConfig {
+  accountSid: string;
+  authToken: string;
+  /** Twilio WhatsApp-enabled sender number, e.g. "+14155238886" (no "whatsapp:" prefix). */
+  fromNumber: string;
+  /** Max delivery attempts, including the first one. Defaults to 3. */
+  maxAttempts?: number;
+  /** Base delay (ms) for exponential backoff between retries. Defaults to 500ms. */
+  baseDelayMs?: number;
+  /** Injectable sleep for deterministic tests. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+export interface WhatsAppDispatchResult {
+  success: boolean;
+  messageSid?: string;
+  status?: string;
+  error?: string;
+  attempts: number;
+}
+
+const E164_PATTERN = /^\+[1-9]\d{6,14}$/;
+const TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01';
+
+/** Validates a phone number as E.164 (required format for Twilio WhatsApp numbers). */
+export function isValidE164Number(value: string): boolean {
+  return typeof value === 'string' && E164_PATTERN.test(value.trim());
+}
+
+/** Strips a leading "whatsapp:" prefix, if present, and trims whitespace. */
+export function normalizeWhatsAppNumber(value: string): string {
+  return value.trim().replace(/^whatsapp:/i, '');
+}
+
+function escapeForWhatsApp(value: string): string {
+  // WhatsApp uses a lightweight markdown dialect where *, _, ~ and ``` are
+  // formatting tokens; escape them so untrusted fields can't break layout.
+  return value.replace(/([*_~`])/g, '\\$1');
+}
+
+/** Builds the plain-text, WhatsApp-markdown-formatted payment receipt message. */
+export function buildWhatsAppMessage(data: WhatsAppAlertData): string {
+  const assetLabel =
+    data.asset === 'XLM' || data.asset === 'native'
+      ? 'XLM'
+      : data.assetIssuer
+        ? `${data.asset} (${data.assetIssuer.slice(0, 4)}...${data.assetIssuer.slice(-4)})`
+        : data.asset;
+
+  return [
+    '*Stellar Payment Received*',
+    `Amount: ${escapeForWhatsApp(data.amount)} ${escapeForWhatsApp(assetLabel)}`,
+    `From: ${escapeForWhatsApp(data.fromAddress)}`,
+    `Tx: ${escapeForWhatsApp(data.txHash)}`,
+    `Received: ${escapeForWhatsApp(data.receivedAt)}`,
+  ].join('\n');
+}
+
+export class WhatsAppInvalidNumberError extends Error {
+  constructor(number: string) {
+    super(`"${number}" is not a valid E.164 WhatsApp number`);
+    this.name = 'WhatsAppInvalidNumberError';
   }
 }
 
-export function buildWhatsAppCloudPayload(
-  toPhoneNumber: string,
-  data: AlertJobData,
-  language: string = 'EN'
-) {
-  const lang = normalizeLanguage(language);
-  const messageText = formatWhatsAppMessage(data, lang);
-
-  return {
-    messaging_product: 'whatsapp',
-    recipient_type: 'individual',
-    to: toPhoneNumber,
-    type: 'text',
-    text: {
-      preview_url: false,
-      body: messageText,
-    },
-    template: {
-      name: `payment_receipt_${lang.toLowerCase()}`,
-      language: {
-        code: lang.toLowerCase(),
-      },
-      components: [
-        {
-          type: 'body',
-          parameters: [
-            { type: 'text', text: data.amount },
-            { type: 'text', text: data.asset },
-            { type: 'text', text: data.fromAddress },
-            { type: 'text', text: data.txHash },
-          ],
-        },
-      ],
-    },
-  };
+function parseRetryAfterMs(headers: Headers | undefined): number | undefined {
+  const raw = headers?.get('Retry-After');
+  if (!raw) return undefined;
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) ? seconds * 1000 : undefined;
 }
+
+import { env } from '../config/env';
+import { fetchWithTimeout } from '../lib/external-request';
 
 export async function dispatchWhatsAppAlert(
   phoneNumber: string,
   data: AlertJobData,
-  language: string = 'EN'
+  language: string = 'EN',
+  options: { timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<boolean> {
   const whatsappApiUrl =
     process.env.WHATSAPP_API_URL ||
@@ -88,17 +95,23 @@ export async function dispatchWhatsAppAlert(
   const whatsappToken = process.env.WHATSAPP_API_TOKEN || 'mock_whatsapp_token';
 
   const payload = buildWhatsAppCloudPayload(phoneNumber, data, language);
+  const timeoutMs = options.timeoutMs ?? env.NOTIFICATION_PROVIDER_TIMEOUT_MS;
 
   try {
-    const res = await fetch(whatsappApiUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${whatsappToken}`,
-        'Content-Type': 'application/json',
+    const res = await fetchWithTimeout(
+      whatsappApiUrl,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${whatsappToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10000),
-    });
+      timeoutMs,
+      options.signal,
+      'WhatsApp',
+    );
 
     if (!res.ok) {
       const errorText = await res.text();
@@ -106,10 +119,21 @@ export async function dispatchWhatsAppAlert(
       return false;
     }
 
-    console.log(`[WhatsAppWorker] 📱 Dispatched localized (${payload.template.language.code}) WhatsApp alert to ${phoneNumber}`);
-    return true;
-  } catch (err: any) {
-    console.warn(`[WhatsAppWorker] Failed to send WhatsApp message to ${phoneNumber}: ${err.message}`);
-    return false;
+      const retryable = response.status === 429 || response.status >= 500;
+      if (!retryable || attempt === maxAttempts) {
+        return { success: false, error: lastError, attempts: attempt };
+      }
+
+      const retryAfterMs = parseRetryAfterMs(response.headers);
+      await sleep(retryAfterMs ?? baseDelayMs * 2 ** (attempt - 1));
+    } catch (error: any) {
+      lastError = error.message || 'Unknown network error';
+      if (attempt === maxAttempts) {
+        return { success: false, error: lastError, attempts: attempt };
+      }
+      await sleep(baseDelayMs * 2 ** (attempt - 1));
+    }
   }
+
+  return { success: false, error: lastError, attempts: maxAttempts };
 }
