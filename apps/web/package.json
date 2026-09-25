@@ -13,6 +13,7 @@
   "dependencies": {
     "@react-three/fiber": "^9.7.0",
     "@stellar-alerts/shared": "*",
+    "@stellar/freighter-api": "^6.0.1",
     "@telegram-apps/sdk": "^3.11.8",
     "next": "16.2.10",
     "next-auth": "^4.24.14",

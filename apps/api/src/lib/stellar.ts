@@ -1,4 +1,11 @@
 import * as StellarSdk from 'stellar-sdk';
+import { env } from '../config/env';
+import { withDeadline } from './external-request';
+
+// Configure global Horizon AxiosClient default timeout
+if ((StellarSdk.Horizon as any)?.AxiosClient?.defaults) {
+  (StellarSdk.Horizon as any).AxiosClient.defaults.timeout = env.HORIZON_REQUEST_TIMEOUT_MS;
+}
 
 const server = new StellarSdk.Horizon.Server('https://horizon-testnet.stellar.org');
 
@@ -324,24 +331,32 @@ export class MultiNodeHorizonClient {
     publicKey: string,
     cursor: string,
     limit = 50,
+    options: { timeoutMs?: number; signal?: AbortSignal } = {},
   ): Promise<{ records: any[]; allNodesFailed: boolean; lastError: string | null }> {
     if (!publicKey || !StellarSdk.StrKey.isValidEd25519PublicKey(publicKey)) {
       console.warn(`[MultiNodeHorizon] Skipping invalid public key checksum: "${publicKey}"`);
       return { records: [], allNodesFailed: false, lastError: null };
     }
 
+    const timeoutMs = options.timeoutMs ?? env.HORIZON_REQUEST_TIMEOUT_MS;
     let lastError: string | null = null;
 
     for (let i = 0; i < this.servers.length; i++) {
       const server = this.servers[i];
       try {
-        const payments = await server
-          .payments()
-          .forAccount(publicKey)
-          .cursor(cursor)
-          .order('asc')
-          .limit(limit)
-          .call();
+        const payments = await withDeadline(
+          () =>
+            server
+              .payments()
+              .forAccount(publicKey)
+              .cursor(cursor)
+              .order('asc')
+              .limit(limit)
+              .call(),
+          timeoutMs,
+          options.signal,
+          `Horizon node ${this.endpoints[i]}`,
+        );
         return { records: payments.records, allNodesFailed: false, lastError: null };
       } catch (error: any) {
         lastError = error?.message || String(error);
@@ -425,15 +440,22 @@ export const stellar = {
   // Horizon. Returns null for an invalid public key or if the account
   // cannot be loaded (e.g. not yet funded on this network).
   async getAccountSigners(
-    publicKey: string
+    publicKey: string,
+    options: { timeoutMs?: number; signal?: AbortSignal } = {},
   ): Promise<{ signers: MultisigSigner[]; thresholds: MultisigThresholds } | null> {
     if (!publicKey || !StellarSdk.StrKey.isValidEd25519PublicKey(publicKey)) {
       console.warn(`[Stellar] Skipping invalid public key format or checksum: "${publicKey}"`);
       return null;
     }
 
+    const timeoutMs = options.timeoutMs ?? env.HORIZON_REQUEST_TIMEOUT_MS;
     try {
-      const account = await server.loadAccount(publicKey);
+      const account = await withDeadline(
+        () => server.loadAccount(publicKey),
+        timeoutMs,
+        options.signal,
+        'Horizon',
+      );
       return {
         signers: account.signers.map((s) => ({ key: s.key, weight: s.weight })),
         thresholds: {
@@ -448,18 +470,30 @@ export const stellar = {
     }
   },
   // Helper to fetch recent payments for a given account
-  async getRecentPayments(publicKey: string, limit: number = 10) {
+  async getRecentPayments(
+    publicKey: string,
+    limit: number = 10,
+    options: { timeoutMs?: number; signal?: AbortSignal } = {},
+  ) {
     if (!publicKey || !StellarSdk.StrKey.isValidEd25519PublicKey(publicKey)) {
       console.warn(`[Stellar] Skipping invalid public key format or checksum: "${publicKey}"`);
       return [];
     }
 
+    const timeoutMs = options.timeoutMs ?? env.HORIZON_REQUEST_TIMEOUT_MS;
     try {
-      const payments = await server.payments()
-        .forAccount(publicKey)
-        .order('desc')
-        .limit(limit)
-        .call();
+      const payments = await withDeadline(
+        () =>
+          server
+            .payments()
+            .forAccount(publicKey)
+            .order('desc')
+            .limit(limit)
+            .call(),
+        timeoutMs,
+        options.signal,
+        'Horizon',
+      );
       
       return payments.records;
     } catch (error: any) {

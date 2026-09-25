@@ -1,7 +1,9 @@
 import * as StellarSdk from 'stellar-sdk';
+import { env } from '../config/env';
 import { prisma, connectWithRetry } from '../lib/prisma';
 import { stellar, decodeHorizonAsset, parseSacTransferEvent } from '../lib/stellar';
 import { enqueuePaymentAlert } from '../lib/queue';
+import { publishPaymentEvent } from '../lib/realtime';
 import {
   getSorobanLatestLedger,
   loadContractRegistry,
@@ -11,9 +13,18 @@ import {
 } from '../lib/soroban';
 import { withWalletLock } from '../lib/lock';
 import { shouldAlert, PaymentContext } from '../lib/rules-engine';
+import { evaluateAndDispatch, AlertRuleRecord, NormalizedPaymentEvent } from '../lib/alert-rule-evaluator';
 import { MemoryMonitor, MemorySnapshot } from '../utils/memory-monitor';
 import { createLogger } from '../lib/logger';
+import { WorkerLifecycleManager } from '../lib/worker-lifecycle';
 import { trace, SpanStatusCode, TraceFlags } from '@opentelemetry/api';
+
+export const watcherLifecycle = new WorkerLifecycleManager({
+  workerName: 'WatcherWorker',
+  drainTimeoutMs: 10_000,
+  maxInFlight: 20,
+  autoRegisterSignals: true,
+});
 import {
   BOUNDED_BACKFILL_LIMIT,
   buildCursorGapClearedUpdate,
@@ -125,26 +136,68 @@ export async function processPaymentRecord(
       }
 
       if (isNewPayment && payment) {
-        let shouldSendAlert = true;
+        if (wallet.userId) {
+          await publishPaymentEvent(wallet.userId, payment);
+        }
+
+        const alertJobPayload = {
+          paymentId: payment.id,
+          txHash,
+          walletId: wallet.id,
+          amount,
+          asset,
+          assetIssuer,
+          fromAddress,
+          receivedAt: receivedAt.toISOString(),
+        };
+
+        // Persisted AlertRule records take priority when a user has any
+        // configured (see lib/alert-rule-evaluator.ts): only a matching
+        // rule enqueues a notification job, and duplicate delivery of the
+        // same payment event is a no-op. Users with no AlertRule rows keep
+        // the legacy NotificationPreference.filterRules gate (or, absent
+        // that too, the historical "always alert" default) unchanged.
+        let dispatched = false;
+        let usedAlertRules = false;
 
         if (wallet.userId) {
-          const notifyPrefs = await prisma.notificationPreference.findUnique({
+          const alertRules = await prisma.alertRule.findMany({
             where: { userId: wallet.userId },
           });
 
-          if ((notifyPrefs as any)?.filterRules) {
-            const paymentContext: PaymentContext = {
+          if (alertRules.length > 0) {
+            usedAlertRules = true;
+            const event: NormalizedPaymentEvent = {
+              paymentId: payment.id,
+              txHash,
+              walletId: wallet.id,
+              userId: wallet.userId,
               amount: Number(amount),
               asset,
+              assetIssuer,
               fromAddress,
               memo,
+              receivedAt: receivedAt.toISOString(),
             };
 
-            shouldSendAlert = shouldAlert((notifyPrefs as any)?.filterRules, paymentContext);
+            const result = await evaluateAndDispatch(event, {
+              findRules: async () => alertRules as unknown as AlertRuleRecord[],
+              hasDispatched: async (paymentId) =>
+                Boolean(await prisma.alertRuleDispatchLog.findUnique({ where: { paymentId } })),
+              recordDispatch: async (paymentId, matchedRuleIds) => {
+                await prisma.alertRuleDispatchLog.create({
+                  data: { paymentId, matchedRuleIds },
+                });
+              },
+              enqueueAlert: async () => enqueuePaymentAlert(alertJobPayload),
+            });
 
-            if (!shouldSendAlert) {
+            dispatched = result.enqueued;
+            span.setAttribute('payment.matchedAlertRules', result.matchedRuleIds.length);
+
+            if (result.matchedRuleIds.length === 0) {
               console.log(
-                `[WatcherWorker] 🔕 Payment filtered by rules for wallet (${wallet.publicKey.substring(
+                `[WatcherWorker] 🔕 No active AlertRule matched for wallet (${wallet.publicKey.substring(
                   0,
                   8
                 )}...): ${amount} ${asset}`
@@ -153,21 +206,42 @@ export async function processPaymentRecord(
           }
         }
 
-        if (shouldSendAlert) {
-          await enqueuePaymentAlert({
-            paymentId: payment.id,
-            txHash,
-            walletId: wallet.id,
-            amount,
-            asset,
-            assetIssuer,
-            fromAddress,
-            receivedAt: receivedAt.toISOString(),
-          });
-          span.setAttribute('payment.enqueued', true);
-        } else {
-          span.setAttribute('payment.enqueued', false);
+        if (!usedAlertRules) {
+          let shouldSendAlert = true;
+
+          if (wallet.userId) {
+            const notifyPrefs = await prisma.notificationPreference.findUnique({
+              where: { userId: wallet.userId },
+            });
+
+            if ((notifyPrefs as any)?.filterRules) {
+              const paymentContext: PaymentContext = {
+                amount: Number(amount),
+                asset,
+                fromAddress,
+                memo,
+              };
+
+              shouldSendAlert = shouldAlert((notifyPrefs as any)?.filterRules, paymentContext);
+
+              if (!shouldSendAlert) {
+                console.log(
+                  `[WatcherWorker] 🔕 Payment filtered by rules for wallet (${wallet.publicKey.substring(
+                    0,
+                    8
+                  )}...): ${amount} ${asset}`
+                );
+              }
+            }
+          }
+
+          if (shouldSendAlert) {
+            await enqueuePaymentAlert(alertJobPayload);
+            dispatched = true;
+          }
         }
+
+        span.setAttribute('payment.enqueued', dispatched);
       }
 
       const pagingToken = record.paging_token || record.pagingToken;
@@ -541,6 +615,28 @@ export function startMemoryMonitor(): MemoryMonitor {
   return monitor;
 }
 
+/**
+ * Concurrently processes wallets using a bounded worker pool to prevent starvation (#309).
+ */
+export async function processWalletsConcurrently(
+  wallets: Array<{ id: string; publicKey: string; userId?: string }>,
+  concurrency = env.WATCHER_WALLET_CONCURRENCY,
+): Promise<void> {
+  const queue = [...wallets];
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const wallet = queue.shift();
+      if (!wallet) break;
+      try {
+        await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
+      } catch (err: any) {
+        console.error(`[WatcherWorker] Error processing wallet ${wallet.publicKey}:`, err.message || err);
+      }
+    }
+  });
+  await Promise.all(workers);
+}
+
 export async function pollOnce() {
   return tracer.startActiveSpan('watcher.pollOnce', async (pollSpan) => {
     try {
@@ -550,13 +646,7 @@ export async function pollOnce() {
         pollSpan.end();
         return;
       }
-      for (const wallet of wallets) {
-        try {
-          await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
-        } catch (err: any) {
-          console.error(`[WatcherWorker] Error processing wallet ${wallet.publicKey}:`, err.message || err);
-        }
-      }
+      await processWalletsConcurrently(wallets, env.WATCHER_WALLET_CONCURRENCY);
       const contractIds = getActiveContractIds();
       if (contractIds.length > 0) {
         for (const contractId of contractIds) {
@@ -582,54 +672,65 @@ export async function runWatcher() {
 
   startMemoryMonitor();
 
+  watcherLifecycle.registerCleanup('memoryMonitor', () => {
+    memoryMonitor?.stop();
+  });
+  watcherLifecycle.registerCleanup('prisma', async () => {
+    await prisma.$disconnect();
+  });
+
   await loadContractRegistry();
 
   const poll = async () => {
-    return tracer.startActiveSpan('watcher.poll', async (pollSpan) => {
-      try {
-        const wallets = await prisma.wallet.findMany();
-        if (wallets.length === 0) {
-          console.log(
-            "[WatcherWorker] No wallets registered in DB to watch. Waiting for next poll...",
-          );
-          pollSpan.setStatus({ code: SpanStatusCode.OK });
-          pollSpan.end();
-          return;
-        }
-
-        console.log(
-          `[WatcherWorker] Checking ${wallets.length} registered wallet(s)...`,
-        );
-        for (const wallet of wallets) {
-          await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
-        }
-
-        const contractIds = getActiveContractIds();
-        if (contractIds.length > 0) {
-          console.log(
-            `[WatcherWorker] Processing ${contractIds.length} Soroban contract subscriptions...`,
-          );
-          for (const contractId of contractIds) {
-            await processSorobanContractEvents(contractId);
+    return watcherLifecycle.runTask(async () => {
+      return tracer.startActiveSpan('watcher.poll', async (pollSpan) => {
+        try {
+          const wallets = await prisma.wallet.findMany();
+          if (wallets.length === 0) {
+            console.log(
+              "[WatcherWorker] No wallets registered in DB to watch. Waiting for next poll...",
+            );
+            pollSpan.setStatus({ code: SpanStatusCode.OK });
+            pollSpan.end();
+            return;
           }
+
+          console.log(
+            `[WatcherWorker] Checking ${wallets.length} registered wallet(s)...`,
+          );
+          for (const wallet of wallets) {
+            await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
+          }
+
+          const contractIds = getActiveContractIds();
+          if (contractIds.length > 0) {
+            console.log(
+              `[WatcherWorker] Processing ${contractIds.length} Soroban contract subscriptions...`,
+            );
+            for (const contractId of contractIds) {
+              await processSorobanContractEvents(contractId);
+            }
+          }
+          pollSpan.setStatus({ code: SpanStatusCode.OK });
+        } catch (err) {
+          pollSpan.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+          throw err;
+        } finally {
+          pollSpan.end();
         }
-        pollSpan.setStatus({ code: SpanStatusCode.OK });
-      } catch (err) {
-        pollSpan.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
-        throw err;
-      } finally {
-        pollSpan.end();
-      }
+      });
     });
   };
 
   await poll();
 
-  setInterval(poll, 30000);
+  const pollTimer = setInterval(poll, 30000);
+  watcherLifecycle.trackInterval(pollTimer);
 
-  setInterval(() => {
+  const registryTimer = setInterval(() => {
     loadContractRegistry();
   }, 300000);
+  watcherLifecycle.trackInterval(registryTimer);
 }
 
 async function processSorobanContractEvents(contractId: string) {

@@ -1,5 +1,4 @@
-import crypto from 'crypto';
-import { randomUUID } from 'crypto';
+import crypto, { randomUUID } from 'crypto';
 import { prisma } from './prisma';
 import { redis } from './redis';
 import { createLogger } from './logger';
