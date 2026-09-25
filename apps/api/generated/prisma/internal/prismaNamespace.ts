@@ -402,6 +402,7 @@ export const ModelName = {
   IngestionCursor: 'IngestionCursor',
   Payment: 'Payment',
   NotificationPreference: 'NotificationPreference',
+  WhatsAppDeliveryLog: 'WhatsAppDeliveryLog',
   Webhook: 'Webhook',
   WebhookLog: 'WebhookLog',
   WebhookCircuitBreaker: 'WebhookCircuitBreaker',
@@ -421,7 +422,8 @@ export const ModelName = {
   SecurityAuditLog: 'SecurityAuditLog',
   NotificationDeliveryAttempt: 'NotificationDeliveryAttempt',
   DeadLetter: 'DeadLetter',
-  DeadLetterAudit: 'DeadLetterAudit'
+  DeadLetterAudit: 'DeadLetterAudit',
+  MfaRecoveryCode: 'MfaRecoveryCode'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -437,7 +439,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "wallet" | "ingestionCursor" | "payment" | "notificationPreference" | "webhook" | "webhookLog" | "webhookCircuitBreaker" | "sorobanEventSnapshot" | "sorobanStateAudit" | "sorobanContractSubscription" | "sacTokenMintBurnEvent" | "sacTokenSupply" | "multisigTreasury" | "multisigSignerWatcher" | "pendingMultisigTransaction" | "anchorTransactionWatch" | "dexSwapWatch" | "sorobanTopicIndex" | "sorobanTopicIndexCursor" | "dexSwapEvent" | "securityAuditLog" | "notificationDeliveryAttempt" | "deadLetter" | "deadLetterAudit"
+    modelProps: "user" | "wallet" | "ingestionCursor" | "payment" | "notificationPreference" | "webhook" | "webhookLog" | "webhookCircuitBreaker" | "sorobanEventSnapshot" | "sorobanStateAudit" | "sorobanContractSubscription" | "sacTokenMintBurnEvent" | "sacTokenSupply" | "multisigTreasury" | "multisigSignerWatcher" | "pendingMultisigTransaction" | "anchorTransactionWatch" | "dexSwapWatch" | "sorobanTopicIndex" | "sorobanTopicIndexCursor" | "dexSwapEvent" | "securityAuditLog" | "notificationDeliveryAttempt" | "deadLetter" | "deadLetterAudit" | "mfaRecoveryCode"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -808,6 +810,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.NotificationPreferenceCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.NotificationPreferenceCountAggregateOutputType> | number
+        }
+      }
+    }
+    WhatsAppDeliveryLog: {
+      payload: Prisma.$WhatsAppDeliveryLogPayload<ExtArgs>
+      fields: Prisma.WhatsAppDeliveryLogFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.WhatsAppDeliveryLogFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.WhatsAppDeliveryLogFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>
+        }
+        findFirst: {
+          args: Prisma.WhatsAppDeliveryLogFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.WhatsAppDeliveryLogFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>
+        }
+        findMany: {
+          args: Prisma.WhatsAppDeliveryLogFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>[]
+        }
+        create: {
+          args: Prisma.WhatsAppDeliveryLogCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>
+        }
+        createMany: {
+          args: Prisma.WhatsAppDeliveryLogCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.WhatsAppDeliveryLogCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>[]
+        }
+        delete: {
+          args: Prisma.WhatsAppDeliveryLogDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>
+        }
+        update: {
+          args: Prisma.WhatsAppDeliveryLogUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>
+        }
+        deleteMany: {
+          args: Prisma.WhatsAppDeliveryLogDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.WhatsAppDeliveryLogUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.WhatsAppDeliveryLogUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>[]
+        }
+        upsert: {
+          args: Prisma.WhatsAppDeliveryLogUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WhatsAppDeliveryLogPayload>
+        }
+        aggregate: {
+          args: Prisma.WhatsAppDeliveryLogAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateWhatsAppDeliveryLog>
+        }
+        groupBy: {
+          args: Prisma.WhatsAppDeliveryLogGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.WhatsAppDeliveryLogGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.WhatsAppDeliveryLogCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.WhatsAppDeliveryLogCountAggregateOutputType> | number
         }
       }
     }
@@ -2291,6 +2367,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    MfaRecoveryCode: {
+      payload: Prisma.$MfaRecoveryCodePayload<ExtArgs>
+      fields: Prisma.MfaRecoveryCodeFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.MfaRecoveryCodeFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.MfaRecoveryCodeFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>
+        }
+        findFirst: {
+          args: Prisma.MfaRecoveryCodeFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.MfaRecoveryCodeFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>
+        }
+        findMany: {
+          args: Prisma.MfaRecoveryCodeFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>[]
+        }
+        create: {
+          args: Prisma.MfaRecoveryCodeCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>
+        }
+        createMany: {
+          args: Prisma.MfaRecoveryCodeCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.MfaRecoveryCodeCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>[]
+        }
+        delete: {
+          args: Prisma.MfaRecoveryCodeDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>
+        }
+        update: {
+          args: Prisma.MfaRecoveryCodeUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>
+        }
+        deleteMany: {
+          args: Prisma.MfaRecoveryCodeDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.MfaRecoveryCodeUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.MfaRecoveryCodeUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>[]
+        }
+        upsert: {
+          args: Prisma.MfaRecoveryCodeUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MfaRecoveryCodePayload>
+        }
+        aggregate: {
+          args: Prisma.MfaRecoveryCodeAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateMfaRecoveryCode>
+        }
+        groupBy: {
+          args: Prisma.MfaRecoveryCodeGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MfaRecoveryCodeGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.MfaRecoveryCodeCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MfaRecoveryCodeCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -2398,6 +2548,21 @@ export const NotificationPreferenceScalarFieldEnum = {
 } as const
 
 export type NotificationPreferenceScalarFieldEnum = (typeof NotificationPreferenceScalarFieldEnum)[keyof typeof NotificationPreferenceScalarFieldEnum]
+
+
+export const WhatsAppDeliveryLogScalarFieldEnum = {
+  id: 'id',
+  paymentId: 'paymentId',
+  toNumber: 'toNumber',
+  success: 'success',
+  messageSid: 'messageSid',
+  status: 'status',
+  error: 'error',
+  attempts: 'attempts',
+  sentAt: 'sentAt'
+} as const
+
+export type WhatsAppDeliveryLogScalarFieldEnum = (typeof WhatsAppDeliveryLogScalarFieldEnum)[keyof typeof WhatsAppDeliveryLogScalarFieldEnum]
 
 
 export const WebhookScalarFieldEnum = {
@@ -2685,6 +2850,18 @@ export const DeadLetterAuditScalarFieldEnum = {
 } as const
 
 export type DeadLetterAuditScalarFieldEnum = (typeof DeadLetterAuditScalarFieldEnum)[keyof typeof DeadLetterAuditScalarFieldEnum]
+
+
+export const MfaRecoveryCodeScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  codeHash: 'codeHash',
+  used: 'used',
+  usedAt: 'usedAt',
+  createdAt: 'createdAt'
+} as const
+
+export type MfaRecoveryCodeScalarFieldEnum = (typeof MfaRecoveryCodeScalarFieldEnum)[keyof typeof MfaRecoveryCodeScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -2987,6 +3164,7 @@ export type GlobalOmitConfig = {
   ingestionCursor?: Prisma.IngestionCursorOmit
   payment?: Prisma.PaymentOmit
   notificationPreference?: Prisma.NotificationPreferenceOmit
+  whatsAppDeliveryLog?: Prisma.WhatsAppDeliveryLogOmit
   webhook?: Prisma.WebhookOmit
   webhookLog?: Prisma.WebhookLogOmit
   webhookCircuitBreaker?: Prisma.WebhookCircuitBreakerOmit
@@ -3007,6 +3185,7 @@ export type GlobalOmitConfig = {
   notificationDeliveryAttempt?: Prisma.NotificationDeliveryAttemptOmit
   deadLetter?: Prisma.DeadLetterOmit
   deadLetterAudit?: Prisma.DeadLetterAuditOmit
+  mfaRecoveryCode?: Prisma.MfaRecoveryCodeOmit
 }
 
 /* Types for Logging */

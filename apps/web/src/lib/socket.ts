@@ -1,23 +1,26 @@
-import { PaymentDTO } from '@stellar-alerts/shared';
+import { PaymentDTO, DeliveryEventDTO } from '@stellar-alerts/shared';
 
 export interface WebSocketMessage {
-  type: 'payment' | 'wallet_update' | 'connection';
+  type: 'payment' | 'wallet_update' | 'connection' | 'delivery';
   payload: any;
   timestamp: string;
 }
 
 export type MessageHandler = (message: WebSocketMessage) => void;
 export type PaymentHandler = (payment: PaymentDTO) => void;
+export type DeliveryHandler = (delivery: DeliveryEventDTO) => void;
 
 export class StellarAlertsSocket {
   private ws: WebSocket | null = null;
   private url: string;
   private handlers: Map<string, Set<MessageHandler>> = new Map();
   private paymentHandlers: Set<PaymentHandler> = new Set();
+  private deliveryHandlers: Set<DeliveryHandler> = new Set();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isConnecting = false;
+  private token: string | null = null;
 
   constructor(url?: string) {
     this.url = url || this.getDefaultUrl();
@@ -32,7 +35,17 @@ export class StellarAlertsSocket {
     return `${protocol}//${host}/ws`;
   }
 
-  connect(): void {
+  /**
+   * @param token Session JWT to authenticate the handshake with. Required —
+   * the server closes the connection with code 4401 if it's missing or
+   * invalid. Passed as a query param since browsers can't set custom
+   * headers (e.g. Authorization) on a native WebSocket handshake.
+   */
+  connect(token?: string): void {
+    if (token) {
+      this.token = token;
+    }
+
     if (this.ws?.readyState === WebSocket.OPEN || this.isConnecting) {
       return;
     }
@@ -40,7 +53,8 @@ export class StellarAlertsSocket {
     this.isConnecting = true;
 
     try {
-      this.ws = new WebSocket(this.url);
+      const url = this.token ? `${this.url}?token=${encodeURIComponent(this.token)}` : this.url;
+      this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
         console.log('🔗 WebSocket connected');
@@ -115,6 +129,13 @@ export class StellarAlertsSocket {
       }
     }
 
+    // Notify delivery-specific handlers
+    if (message.type === 'delivery') {
+      for (const handler of this.deliveryHandlers) {
+        handler(message.payload as DeliveryEventDTO);
+      }
+    }
+
     // Notify all-message handlers
     const allHandlers = this.handlers.get('*');
     if (allHandlers) {
@@ -140,6 +161,13 @@ export class StellarAlertsSocket {
     this.paymentHandlers.add(handler);
     return () => {
       this.paymentHandlers.delete(handler);
+    };
+  }
+
+  onDelivery(handler: DeliveryHandler): () => void {
+    this.deliveryHandlers.add(handler);
+    return () => {
+      this.deliveryHandlers.delete(handler);
     };
   }
 
@@ -182,8 +210,8 @@ export function getSocket(): StellarAlertsSocket {
   return instance;
 }
 
-export function connectSocket(): StellarAlertsSocket {
+export function connectSocket(token?: string): StellarAlertsSocket {
   const socket = getSocket();
-  socket.connect();
+  socket.connect(token);
   return socket;
 }

@@ -1,7 +1,9 @@
 import * as StellarSdk from 'stellar-sdk';
+import { env } from '../config/env';
 import { prisma, connectWithRetry } from '../lib/prisma';
 import { stellar, decodeHorizonAsset, parseSacTransferEvent } from '../lib/stellar';
 import { enqueuePaymentAlert } from '../lib/queue';
+import { publishPaymentEvent } from '../lib/realtime';
 import {
   getSorobanLatestLedger,
   loadContractRegistry,
@@ -133,6 +135,10 @@ export async function processPaymentRecord(
       }
 
       if (isNewPayment && payment) {
+        if (wallet.userId) {
+          await publishPaymentEvent(wallet.userId, payment);
+        }
+
         let shouldSendAlert = true;
 
         if (wallet.userId) {
@@ -549,6 +555,28 @@ export function startMemoryMonitor(): MemoryMonitor {
   return monitor;
 }
 
+/**
+ * Concurrently processes wallets using a bounded worker pool to prevent starvation (#309).
+ */
+export async function processWalletsConcurrently(
+  wallets: Array<{ id: string; publicKey: string; userId?: string }>,
+  concurrency = env.WATCHER_WALLET_CONCURRENCY,
+): Promise<void> {
+  const queue = [...wallets];
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const wallet = queue.shift();
+      if (!wallet) break;
+      try {
+        await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
+      } catch (err: any) {
+        console.error(`[WatcherWorker] Error processing wallet ${wallet.publicKey}:`, err.message || err);
+      }
+    }
+  });
+  await Promise.all(workers);
+}
+
 export async function pollOnce() {
   return tracer.startActiveSpan('watcher.pollOnce', async (pollSpan) => {
     try {
@@ -558,13 +586,7 @@ export async function pollOnce() {
         pollSpan.end();
         return;
       }
-      for (const wallet of wallets) {
-        try {
-          await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
-        } catch (err: any) {
-          console.error(`[WatcherWorker] Error processing wallet ${wallet.publicKey}:`, err.message || err);
-        }
-      }
+      await processWalletsConcurrently(wallets, env.WATCHER_WALLET_CONCURRENCY);
       const contractIds = getActiveContractIds();
       if (contractIds.length > 0) {
         for (const contractId of contractIds) {

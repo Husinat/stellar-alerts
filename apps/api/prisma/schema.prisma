@@ -22,6 +22,7 @@ model User {
   dexSwapWatches        DexSwapWatch[]
   deliveryAttempts NotificationDeliveryAttempt[]
   deadLetters        DeadLetter[]
+  mfaRecoveryCodes   MfaRecoveryCode[]
 }
 
 model Wallet {
@@ -82,6 +83,20 @@ model NotificationPreference {
   whatsappEnabled Boolean @default(false)
   language        String  @default("EN")
   filterRules     Json?   // Stores filter rule group as JSON
+}
+
+model WhatsAppDeliveryLog {
+  id         String   @id @default(cuid())
+  paymentId  String
+  toNumber   String
+  success    Boolean
+  messageSid String?
+  status     String?
+  error      String?
+  attempts   Int      @default(1)
+  sentAt     DateTime @default(now())
+
+  @@index([paymentId])
 }
 
 model Webhook {
@@ -466,4 +481,21 @@ model DeadLetterAudit {
 
   @@index([deadLetterId])
   @@index([createdAt])
+}
+
+// ── MFA Recovery Codes (#317) ────────────────────────────────────────────────
+//
+// One-time hashed recovery codes for safe account recovery if an MFA device
+// is lost. Plaintext codes are only displayed upon generation/regeneration.
+model MfaRecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  used      Boolean   @default(false)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([codeHash])
 }

@@ -5,7 +5,13 @@ import { useSession } from 'next-auth/react';
 import { useFreighterWallet } from '@/lib/hooks/useFreighterWallet';
 import { looksLikeStellarPublicKey, truncateAddress } from '@/lib/wallet/strkey';
 
-export function WatcherForm({ onWalletAdded }: { onWalletAdded?: () => void }) {
+export function WatcherForm({
+  onWalletAdded,
+  isStreamConnected,
+}: {
+  onWalletAdded?: () => void;
+  isStreamConnected?: boolean;
+}) {
   const [address, setAddress] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const { data: session } = useSession();
@@ -64,7 +70,20 @@ export function WatcherForm({ onWalletAdded }: { onWalletAdded?: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 border p-6 rounded shadow-md max-w-md mt-6">
-      <h2 className="text-xl font-bold">Add Stellar Watcher</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">Add Stellar Watcher</h2>
+        {isStreamConnected !== undefined && (
+          <span
+            data-testid="stream-connection-status"
+            className={`text-xs flex items-center gap-1.5 ${isStreamConnected ? 'text-green-500' : 'text-gray-400'}`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${isStreamConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}
+            />
+            {isStreamConnected ? 'Live' : 'Offline'}
+          </span>
+        )}
+      </div>
 
       <button
         type="button"
