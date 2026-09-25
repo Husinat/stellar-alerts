@@ -1,2 +1,2 @@
-import { test } from '@playwright's
-test('auth', () 4> {});
+// E2E authentication test placeholder
+export {};

@@ -21,7 +21,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@stellar-alerts/shared": ["../../packages/shared/src/index.ts"]
-    }
+    },
+    "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
   "include": [
     "next-env.d.ts",
@@ -31,5 +32,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"]
+  "exclude": ["node_modules", "e2e"]
 }

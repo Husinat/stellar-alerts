@@ -1,5 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ApiHubPage, { generateCodeExample, API_ENDPOINTS } from './page';
 

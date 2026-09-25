@@ -89,3 +89,12 @@ export const cryptoVault = new CryptoVault(
   process.env.MASTER_ENCRYPTION_KEY_VERSION ?? '1',
   oldKeys
 );
+
+export function decryptSecret(encrypted: string): string {
+  return cryptoVault.decrypt(encrypted);
+}
+
+export function encryptSecret(plaintext: string): string {
+  return cryptoVault.encrypt(plaintext);
+}
+

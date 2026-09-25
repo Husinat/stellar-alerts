@@ -2,6 +2,7 @@ import crypto from 'crypto';
 
 import { prisma } from '../../lib/prisma';
 import { KeyRotationManager } from '../../utils/key-rotation-manager';
+import { cryptoVault } from '../../utils/crypto-vault';
 
 export interface WebhookTestResult {
   success: boolean;
@@ -16,7 +17,7 @@ export interface WebhookHealthScorecard {
   averageLatencyMs: number;
   status: WebhookHealthStatus;
   totalDeliveries7d: number;
-  successfudDeliveries7d: number;
+  successfulDeliveries7d: number;
   failedDeliveries7d: number;
 }
 
@@ -67,12 +68,16 @@ export class WebhooksService {
 
     const secret = crypto.randomBytes(32).toString('hex');
     const encryptedSecret = cryptoVault.encrypt(secret);
+    const [version, iv, authTag, ciphertext] = encryptedSecret.split(':');
 
     const webhook = await prisma.webhook.create({
       data: {
         userId,
         url,
-        secret: encryptedSecret,
+        secretCiphertext: ciphertext,
+        secretIv: iv,
+        secretAuthTag: authTag,
+        keyVersion: parseInt(version, 10) || 1,
         payloadTemplate,
       },
       select: {
@@ -88,6 +93,7 @@ export class WebhooksService {
 
     return {
       ...webhook,
+      secret,
       healthPercentage: 100.0,
       averageLatencyMs: 0,
       status: 'HEALTHY' as WebhookHealthStatus,
@@ -159,7 +165,13 @@ export class WebhooksService {
       throw new Error('Webhook not found');
     }
 
-    const secret = cryptoVault.decrypt(webhook.secret);
+    const encryptedString = [
+      webhook.keyVersion.toString(),
+      webhook.secretIv,
+      webhook.secretAuthTag,
+      webhook.secretCiphertext,
+    ].join(':');
+    const secret = cryptoVault.decrypt(encryptedString);
 
     const payload = JSON.stringify({
       event: 'webhook.ping',
@@ -171,7 +183,7 @@ export class WebhooksService {
     });
 
     if (!this.keyRotationManager.getKeyState(webhook.id)) {
-      this.keyRotationManager.setKeyState(webhook.id, { activeSecret: webhook.secret });
+      this.keyRotationManager.setKeyState(webhook.id, { activeSecret: secret });
     }
     const signatures = this.keyRotationManager.sign(payload, webhook.id);
 
