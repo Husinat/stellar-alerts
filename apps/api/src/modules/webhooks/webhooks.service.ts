@@ -3,8 +3,7 @@ import crypto from 'crypto';
 import { prisma } from '../../lib/prisma';
 import { KeyRotationManager } from '../../utils/key-rotation-manager';
 import { cryptoVault, joinEncryptedSecretParts, splitEncryptedSecret } from '../../utils/crypto-vault';
-import { env } from '../../config/env';
-import { fetchWithTimeout } from '../../lib/external-request';
+import { validateUrlForSsrf, ssrfSafeFetch } from '../../utils/ssrf';
 
 export interface WebhookTestResult {
   success: boolean;
@@ -67,6 +66,9 @@ export class WebhooksService {
 
   async addWebhook(userId: string, url: string, payloadTemplate?: string) {
     console.log(`[WebhooksService] Registering webhook ${url} for user ${userId}`);
+
+    // SSRF-safe destination validation (#312)
+    await validateUrlForSsrf(url);
 
     const secret = crypto.randomBytes(32).toString('hex');
     const encryptedSecret = cryptoVault.encrypt(secret);
@@ -193,17 +195,12 @@ export class WebhooksService {
     }
 
     try {
-      const response = await fetchWithTimeout(
-        webhook.url,
-        {
-          method: 'POST',
-          headers,
-          body: payload,
-        },
-        env.WEBHOOK_TIMEOUT_MS,
-        undefined,
-        'Webhook',
-      );
+      const response = await ssrfSafeFetch(webhook.url, {
+        method: 'POST',
+        headers,
+        body: payload,
+        signal: AbortSignal.timeout(WEBHOOK_TEST_TIMEOUT_MS),
+      });
 
       return {
         success: response.ok,

@@ -77,14 +77,41 @@ const parseEnv = (): Env => {
     SOROBAN_STAKING_REWARD_WORKER_ENABLED: process.env.SOROBAN_STAKING_REWARD_WORKER_ENABLED || "true",
     SOROBAN_SAC_WORKER_ENABLED: process.env.SOROBAN_SAC_WORKER_ENABLED || "false",
   };
+
+  const isProd = process.env.NODE_ENV === 'production';
+  const isTest = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
+
+  // In production, reject known placeholder / insecure secrets fail-fast
+  if (isProd) {
+    const insecureKeys: string[] = [];
+    const insecureDefaults = [
+      'dummy-jwt-secret-key-12345',
+      '0123456789abcdef0123456789abcdef',
+      'dummy-telegram-bot-token',
+    ];
+    for (const [k, v] of Object.entries(envInput)) {
+      if (typeof v === 'string' && insecureDefaults.includes(v)) {
+        insecureKeys.push(k);
+      }
+    }
+    if (insecureKeys.length > 0) {
+      const msg = `[Config] ❌ FATAL: Insecure default credentials detected in production: ${insecureKeys.join(', ')}. Server cannot start with placeholder secrets.`;
+      console.error(msg);
+      if (!isTest) {
+        process.exit(1);
+      }
+      throw new Error(msg);
+    }
+  }
+
   const parsed = envSchema.safeParse(envInput);
 
   if (!parsed.success) {
     console.error("❌ Invalid environment variables:", parsed.error.format());
-    if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+    if (isProd || (!isTest && process.env.NODE_ENV !== 'development')) {
       process.exit(1);
     }
-    // Return a typed fallback matching Env so downstream code has consistent shape
+    // Return a typed fallback matching Env so downstream code has consistent shape in dev/test
     return {
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/stellar_alerts",
       TELEGRAM_BOT_TOKEN: "dummy-telegram-bot-token",
@@ -113,33 +140,7 @@ const parseEnv = (): Env => {
     } as Env;
   }
 
-  return parsed.data || {
-    DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/stellar_alerts",
-    TELEGRAM_BOT_TOKEN: "dummy-telegram-bot-token",
-    JWT_SECRET: "dummy-jwt-secret-key-12345",
-    REDIS_URL: "redis://localhost:6379",
-    REDIS_SENTINELS: undefined,
-    REDIS_SENTINEL_MASTER_NAME: "mymaster",
-    REDIS_SENTINEL_PASSWORD: undefined,
-    PORT: "3001",
-    RATE_LIMIT_MAX: 100,
-    SOROBAN_RENT_WORKER_ENABLED: "true",
-    SOROBAN_RENT_WORKER_INTERVAL_MS: "60000",
-    SOROBAN_RENT_WORKER_SECRET: undefined,
-    SOROBAN_RENT_RENEWAL_THRESHOLD: "5000",
-    SOROBAN_RENT_TARGET_TTL: "10000",
-    SOROBAN_RENT_MAX_CONCURRENCY: "5",
-    SOROBAN_INDEXER_WORKER_ENABLED: "true",
-    SOROBAN_INDEXER_INTERVAL_MS: "15000",
-    SOROBAN_INDEXER_BACKFILL_WINDOW: "200",
-    SOROBAN_INDEXER_PAGE_SIZE: "200",
-    SOROBAN_INDEXER_BENCHMARK_INTERVAL_MS: "3600000",
-    SOROBAN_INDEXER_BENCHMARK_DATA_ROWS: "10000",
-    SOROBAN_STAKING_REWARD_WORKER_ENABLED: "true",
-    SOROBAN_SAC_WORKER_ENABLED: "false",
-    OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318/v1/traces",
-    OTEL_SERVICE_NAME: "stellar-alerts-api",
-  };
+  return parsed.data;
 };
 
 export const env = parseEnv();

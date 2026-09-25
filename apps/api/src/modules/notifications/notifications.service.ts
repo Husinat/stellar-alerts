@@ -6,7 +6,7 @@
 
 import { prisma } from '../../lib/prisma';
 import { mfaService } from '../auth/mfa.service';
-import { isValidE164Number } from '../../utils/whatsapp';
+import { encryptPersonalField, decryptPersonalField } from '../../utils/privacy';
 
 export interface NotificationPreferences {
   telegramChatId?: string;
@@ -44,28 +44,20 @@ export class NotificationsService {
       }
     }
 
-    if (preferences.whatsappNumber !== undefined && preferences.whatsappNumber !== null) {
-      if (!isValidE164Number(preferences.whatsappNumber)) {
-        throw new Error('Invalid WhatsApp number: must be in E.164 format (e.g. +14155551234)');
-      }
-    }
+    const dataToSave = {
+      ...preferences,
+      telegramChatId: preferences.telegramChatId ? encryptPersonalField(preferences.telegramChatId) : preferences.telegramChatId,
+      whatsappNumber: preferences.whatsappNumber ? encryptPersonalField(preferences.whatsappNumber) : preferences.whatsappNumber,
+    };
 
-    if (preferences.whatsappEnabled) {
-      const existing = await prisma.notificationPreference.findUnique({ where: { userId } });
-      const effectiveNumber = preferences.whatsappNumber ?? existing?.whatsappNumber;
-      if (!effectiveNumber || !isValidE164Number(effectiveNumber)) {
-        throw new Error('A valid WhatsApp number is required to enable WhatsApp notifications');
-      }
-    }
-
-    // Update preferences
+    // Update preferences with encrypted PII (#314)
     await prisma.notificationPreference.upsert({
       where: { userId },
       create: {
         userId,
-        ...preferences,
+        ...dataToSave,
       },
-      update: preferences,
+      update: dataToSave,
     });
 
     console.log(`[NotificationsService] ✅ Preferences updated for user ${userId}`);
@@ -77,9 +69,15 @@ export class NotificationsService {
    * @param userId - User ID
    */
   async getPreferences(userId: string) {
-    return prisma.notificationPreference.findUnique({
+    const pref = await prisma.notificationPreference.findUnique({
       where: { userId },
     });
+    if (!pref) return null;
+    return {
+      ...pref,
+      telegramChatId: decryptPersonalField(pref.telegramChatId),
+      whatsappNumber: decryptPersonalField(pref.whatsappNumber),
+    };
   }
 }
 

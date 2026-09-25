@@ -14,6 +14,8 @@ import { createLogger } from './logger';
 import { publishDeliveryEvent } from './realtime';
 import { deliverWithIdempotency } from './delivery';
 import { persistDeadLetter } from './dead-letter';
+import { validateUrlForSsrf } from '../utils/ssrf';
+import { decryptPersonalField } from '../utils/privacy';
 
 function decryptWebhookSecret(webhook: {
   keyVersion: number;
@@ -188,6 +190,20 @@ export async function dispatchWebhookAndLog(webhookId: string, payload: any, ret
     }
 
     targetUrl = webhook.url;
+
+    // Validate webhook URL against SSRF rules (#312)
+    try {
+      await validateUrlForSsrf(webhook.url);
+    } catch (ssrfErr: any) {
+      console.error(`[WebhookDispatch] SSRF validation blocked delivery to ${webhook.url}: ${ssrfErr.message}`);
+      await prisma.webhookLog.create({
+        data: {
+          webhookId,
+          error: `SSRF blocked: ${ssrfErr.message}`,
+        },
+      });
+      return;
+    }
 
     // Check circuit breaker state
     if (webhook.circuitBreaker?.state === "open") {
@@ -565,52 +581,10 @@ export async function processAlertDispatch(data: AlertJobData) {
       );
     }
 
-    // Dispatch Telegram alert if configured
-    if (wallet?.user?.notifyPrefs?.telegramEnabled && wallet.user.notifyPrefs.telegramChatId) {
-      const chatId = wallet.user.notifyPrefs.telegramChatId;
-      await deliverWithIdempotency(
-        {
-          paymentId: data.paymentId,
-          channel: "telegram",
-          destination: chatId,
-          userId,
-        },
-        async () => {
-          await workerFairnessManager.acquireProviderBudget('telegram');
-          const botToken = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
-          if (isPublicChannel(chatId)) {
-            await assertBotIsChannelAdmin(botToken, chatId);
-          }
-          const response = await fetchWithTimeout(
-            `https://api.telegram.org/bot${botToken}/sendMessage`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: chatId,
-                text: isPublicChannel(chatId)
-                  ? buildTelegramPaymentCard(data)
-                  : `Payment Receipt:\nAmount: ${data.amount} ${data.asset}\nFrom: ${data.fromAddress}`,
-                ...(isPublicChannel(chatId) ? { parse_mode: 'HTML' } : {}),
-              }),
-            },
-            env.NOTIFICATION_PROVIDER_TIMEOUT_MS,
-            undefined,
-            'Telegram',
-          );
-
-          if (!response.ok) {
-            throw new Error(`Telegram API responded with ${response.status} for ${data.paymentId}`);
-          }
-          console.log(`[Worker] Sent Telegram receipt for ${data.paymentId}`);
-        },
-      ).catch(async (err: any) => {
-        console.warn(`[Worker] Failed to send Telegram notification for ${data.paymentId}: ${err.message}`);
-        await recordDeadLetter('telegram', chatId, err);
-      });
-    }
-
-    // Send email alert
+  // Dispatch Telegram alert if configured
+  if (wallet?.user?.notifyPrefs?.telegramEnabled && wallet.user.notifyPrefs.telegramChatId) {
+    const rawChatId = wallet.user.notifyPrefs.telegramChatId;
+    const chatId = decryptPersonalField(rawChatId) || rawChatId;
     await deliverWithIdempotency(
       {
         paymentId: data.paymentId,
