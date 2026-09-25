@@ -239,6 +239,26 @@ export interface PrismaClient<
   get notificationPreference(): Prisma.NotificationPreferenceDelegate<ExtArgs, { omit: OmitOpts }>;
 
   /**
+   * `prisma.alertRule`: Exposes CRUD operations for the **AlertRule** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more AlertRules
+    * const alertRules = await prisma.alertRule.findMany()
+    * ```
+    */
+  get alertRule(): Prisma.AlertRuleDelegate<ExtArgs, { omit: OmitOpts }>;
+
+  /**
+   * `prisma.alertRuleDispatchLog`: Exposes CRUD operations for the **AlertRuleDispatchLog** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more AlertRuleDispatchLogs
+    * const alertRuleDispatchLogs = await prisma.alertRuleDispatchLog.findMany()
+    * ```
+    */
+  get alertRuleDispatchLog(): Prisma.AlertRuleDispatchLogDelegate<ExtArgs, { omit: OmitOpts }>;
+
+  /**
    * `prisma.whatsAppDeliveryLog`: Exposes CRUD operations for the **WhatsAppDeliveryLog** model.
     * Example usage:
     * ```ts
