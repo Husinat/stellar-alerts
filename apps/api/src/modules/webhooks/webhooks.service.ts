@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import { prisma } from '../../lib/prisma';
 import { KeyRotationManager } from '../../utils/key-rotation-manager';
 import { cryptoVault, joinEncryptedSecretParts, splitEncryptedSecret } from '../../utils/crypto-vault';
+import { env } from '../../config/env';
+import { fetchWithTimeout } from '../../lib/external-request';
 
 export interface WebhookTestResult {
   success: boolean;
@@ -191,12 +193,17 @@ export class WebhooksService {
     }
 
     try {
-      const response = await fetch(webhook.url, {
-        method: 'POST',
-        headers,
-        body: payload,
-        signal: AbortSignal.timeout(WEBHOOK_TEST_TIMEOUT_MS),
-      });
+      const response = await fetchWithTimeout(
+        webhook.url,
+        {
+          method: 'POST',
+          headers,
+          body: payload,
+        },
+        env.WEBHOOK_TIMEOUT_MS,
+        undefined,
+        'Webhook',
+      );
 
       return {
         success: response.ok,

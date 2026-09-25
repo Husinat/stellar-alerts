@@ -69,26 +69,36 @@ export function buildPushNotificationPayload(data: PushNotificationData): PushNo
   };
 }
 
+import { env } from '../config/env';
+import { fetchWithTimeout } from '../lib/external-request';
+
 export async function dispatchPushNotification(
   channelAddress: string,
   data: PushNotificationData,
-  pushApiKey?: string
+  pushApiKey?: string,
+  options: { timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<boolean> {
   const payload = buildPushNotificationPayload(data);
   const endpointUrl = process.env.PUSH_PROTOCOL_API_URL || PUSH_PROTOCOL_API_URL;
   const apiKey = pushApiKey || process.env.PUSH_PROTOCOL_API_KEY || 'demo-api-key';
+  const timeoutMs = options.timeoutMs ?? env.NOTIFICATION_PROVIDER_TIMEOUT_MS;
 
   try {
-    const response = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'X-Push-Channel': channelAddress,
+    const response = await fetchWithTimeout(
+      endpointUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'X-Push-Channel': channelAddress,
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10_000),
-    });
+      timeoutMs,
+      options.signal,
+      'PushProtocol',
+    );
 
     if (!response.ok) {
       console.warn(

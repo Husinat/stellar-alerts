@@ -8,13 +8,22 @@ import jwt from 'jsonwebtoken';
 import { redis } from '../../lib/redis';
 
 const DID_CHALLENGE_TTL_SECONDS = 5 * 60;
+// In-memory fallback when Redis is unavailable (degraded mode)
+const degradedAuthStore = new Map<string, { value: string; expiresAt: number }>();
 
 export class AuthService {
   async requestMagicLink(email: string): Promise<string> {
     const token = generateMagicToken(email);
     const decoded = jwt.decode(token) as MagicLinkPayload;
     if (decoded && decoded.jti) {
-      await redis.set(`magic_token:${decoded.jti}`, 'valid', 'EX', 15 * 60);
+      try {
+        await redis.set(`magic_token:${decoded.jti}`, 'valid', 'EX', 15 * 60);
+      } catch (err: any) {
+        degradedAuthStore.set(`magic_token:${decoded.jti}`, {
+          value: 'valid',
+          expiresAt: Date.now() + 15 * 60 * 1000,
+        });
+      }
     }
     console.log(`[AuthService] ✉️ Magic link generated: http://localhost:3000/verify?token=${token}`);
     return token;
@@ -35,14 +44,26 @@ export class AuthService {
     }
 
     const redisKey = `magic_token:${decoded.jti}`;
-    const tokenStatus = await redis.get(redisKey);
+    let tokenStatus: string | null = null;
+    try {
+      tokenStatus = await redis.get(redisKey);
+    } catch {
+      const entry = degradedAuthStore.get(redisKey);
+      if (entry && entry.expiresAt > Date.now()) {
+        tokenStatus = entry.value;
+      }
+    }
 
     if (!tokenStatus) {
       console.error('[AuthService] Token already used or expired (jti not found in Redis):', decoded.jti);
       throw new Error('Invalid or expired token');
     }
 
-    await redis.del(redisKey);
+    try {
+      await redis.del(redisKey);
+    } catch {
+      degradedAuthStore.delete(redisKey);
+    }
 
     try {
       const user = await prisma.user.upsert({
@@ -71,12 +92,19 @@ export class AuthService {
    */
   async requestDIDChallenge(did: string): Promise<DIDChallenge> {
     const challenge = generateDIDChallenge(did);
-    await redis.set(
-      `did:challenge:${did}`,
-      challenge.challenge,
-      'EX',
-      Math.ceil(DID_CHALLENGE_TTL_SECONDS),
-    );
+    try {
+      await redis.set(
+        `did:challenge:${did}`,
+        challenge.challenge,
+        'EX',
+        Math.ceil(DID_CHALLENGE_TTL_SECONDS),
+      );
+    } catch {
+      degradedAuthStore.set(`did:challenge:${did}`, {
+        value: challenge.challenge,
+        expiresAt: Date.now() + DID_CHALLENGE_TTL_SECONDS * 1000,
+      });
+    }
     console.log(`[AuthService] 🆔 Requesting DID challenge for: ${did}`);
     return challenge;
   }
@@ -90,7 +118,15 @@ export class AuthService {
    */
   async verifyDIDAuth(did: string, challenge: string, signature: string): Promise<{ token: string; user: { id: string; email: string; did: string } }> {
     const challengeKey = `did:challenge:${did}`;
-    const storedChallenge = await redis.get(challengeKey);
+    let storedChallenge: string | null = null;
+    try {
+      storedChallenge = await redis.get(challengeKey);
+    } catch {
+      const entry = degradedAuthStore.get(challengeKey);
+      if (entry && entry.expiresAt > Date.now()) {
+        storedChallenge = entry.value;
+      }
+    }
 
     if (!storedChallenge) {
       throw new Error('DID challenge expired or not requested');
@@ -99,7 +135,11 @@ export class AuthService {
       throw new Error('DID challenge does not match the one that was issued');
     }
     if (isDIDChallengeExpired(challenge)) {
-      await redis.del(challengeKey);
+      try {
+        await redis.del(challengeKey);
+      } catch {
+        degradedAuthStore.delete(challengeKey);
+      }
       throw new Error('DID challenge expired or not requested');
     }
 
@@ -113,7 +153,11 @@ export class AuthService {
 
     // Single use: consume the challenge on a successful sign-in so the same
     // signed payload can never be replayed.
-    await redis.del(challengeKey);
+    try {
+      await redis.del(challengeKey);
+    } catch {
+      degradedAuthStore.delete(challengeKey);
+    }
 
     const syntheticEmail = `${parsed.address.toLowerCase().substring(0, 20)}@did.stellar-alerts.org`;
 
