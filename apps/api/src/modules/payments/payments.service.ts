@@ -2,21 +2,62 @@ import { prisma, prismaRead } from '../../lib/prisma';
 import { convertUsdToFiat, isSupportedFiatCurrency, SupportedFiatCurrency } from '../../lib/exchange-rates';
 import { addDifferentialPrivacyNoise } from '../../utils/differential-privacy';
 
+export type PaymentSortField = 'receivedAt' | 'amount' | 'asset';
+export type SortOrder = 'asc' | 'desc';
+
+export interface GetPaymentsFilters {
+  asset?: string;
+  memo?: string;
+  dateFrom?: Date;
+  dateTo?: Date;
+  sortBy?: PaymentSortField;
+  sortOrder?: SortOrder;
+}
+
 export class PaymentsService {
-  async getPayments(userId: string, walletId?: string, limit: number = 20) {
+  async getPayments(
+    userId: string,
+    walletId?: string,
+    limit: number = 20,
+    filters: GetPaymentsFilters = {},
+  ) {
+    // Authorization is always enforced here, never left to the caller: a
+    // walletId filter is combined with wallet.userId so a request can never
+    // read another user's payments by guessing a walletId.
     const where: any = walletId
       ? { walletId, wallet: { userId } }
       : { wallet: { userId } };
 
+    if (filters.asset) {
+      where.asset = filters.asset;
+    }
+
+    if (filters.memo) {
+      where.memo = { contains: filters.memo, mode: 'insensitive' };
+    }
+
+    if (filters.dateFrom || filters.dateTo) {
+      where.receivedAt = {
+        ...(filters.dateFrom ? { gte: filters.dateFrom } : {}),
+        ...(filters.dateTo ? { lte: filters.dateTo } : {}),
+      };
+    }
+
+    const sortBy = filters.sortBy ?? 'receivedAt';
+    const sortOrder = filters.sortOrder ?? 'desc';
+
     console.log(
       `[PaymentsService] Fetching up to ${limit} payments for user ${userId}${
         walletId ? ` (wallet ${walletId})` : ' (all wallets)'
-      }`
+      }, sorted by ${sortBy} ${sortOrder}`
     );
 
+    // where.walletId / where.asset are indexed (Payment_walletId_idx,
+    // Payment_asset_idx, Payment_walletId_receivedAt_idx); orderBy fields
+    // are indexed except `amount`, which has no dedicated index today.
     return prismaRead.payment.findMany({
       where,
-      orderBy: { receivedAt: 'desc' },
+      orderBy: { [sortBy]: sortOrder },
       take: limit,
     });
   }

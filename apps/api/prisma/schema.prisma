@@ -72,6 +72,9 @@ model Payment {
 
   @@index([txHash])
   @@index([receivedAt])
+  @@index([walletId])
+  @@index([asset])
+  @@index([walletId, receivedAt])
 }
 
 model NotificationPreference {
