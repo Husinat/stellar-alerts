@@ -2,6 +2,7 @@
 // Re-exported under a `Api` namespace to avoid clashing with the
 // hand-written DTOs below (`components["schemas"]["RequestLinkInput"]`, etc).
 export type { components as ApiComponents, paths as ApiPaths } from './generated/api-types';
+export * from './config/index';
 
 export interface UserDTO {
   id: string;
@@ -26,6 +27,15 @@ export interface PaymentDTO {
   asset: string;
   memo?: string | null;
   receivedAt: Date | string;
+}
+
+export interface DeliveryEventDTO {
+  id: string;
+  webhookId: string;
+  statusCode?: number | null;
+  responseBody?: string | null;
+  error?: string | null;
+  sentAt: Date | string;
 }
 
 export interface NotificationPreferenceDTO {

@@ -53,7 +53,6 @@ export function verifyTOTPToken(
     return (authenticator.verify as any)({
       token,
       secret,
-      window,
     });
   } catch (error) {
     console.error('[TOTP] Token verification error:', error);

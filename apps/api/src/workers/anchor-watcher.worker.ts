@@ -1,6 +1,14 @@
 import { prisma } from '../lib/prisma';
 import { fetchAnchorTransactionStatus, isTerminalAnchorStatus, AnchorProtocol } from '../lib/anchor';
 import { registerSupervisorHeartbeat } from './supervisor';
+import { WorkerLifecycleManager } from '../lib/worker-lifecycle';
+
+export const anchorWatcherLifecycle = new WorkerLifecycleManager({
+  workerName: 'AnchorWatcher',
+  drainTimeoutMs: 10_000,
+  maxInFlight: 10,
+  autoRegisterSignals: true,
+});
 
 // How often the watcher re-checks tracked anchor transactions for a status change.
 const POLL_INTERVAL_MS = 30000;
@@ -110,16 +118,23 @@ export async function runAnchorWatcherPass(notify: AnchorNotifier = defaultAncho
 export async function runAnchorWatcher() {
   console.log('[AnchorWatcher] 🚀 Starting Stellar Anchor Protocol (SEP-24/SEP-31) Ingestion Watcher...');
 
+  anchorWatcherLifecycle.registerCleanup('prisma', async () => {
+    await prisma.$disconnect();
+  });
+
   const poll = async () => {
-    try {
-      await runAnchorWatcherPass();
-    } catch (error: any) {
-      console.error('[AnchorWatcher] Polling error:', error?.message || error);
-    }
+    await anchorWatcherLifecycle.runTask(async () => {
+      try {
+        await runAnchorWatcherPass();
+      } catch (error: any) {
+        console.error('[AnchorWatcher] Polling error:', error?.message || error);
+      }
+    });
   };
 
   await poll();
-  setInterval(poll, POLL_INTERVAL_MS);
+  const timer = setInterval(poll, POLL_INTERVAL_MS);
+  anchorWatcherLifecycle.trackInterval(timer);
 }
 
 if (require.main === module) {

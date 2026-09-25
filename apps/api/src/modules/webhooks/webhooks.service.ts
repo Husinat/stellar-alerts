@@ -66,6 +66,9 @@ export class WebhooksService {
   async addWebhook(userId: string, url: string, payloadTemplate?: string) {
     console.log(`[WebhooksService] Registering webhook ${url} for user ${userId}`);
 
+    // SSRF-safe destination validation (#312)
+    await validateUrlForSsrf(url);
+
     const secret = crypto.randomBytes(32).toString('hex');
     const encryptedSecret = cryptoVault.encrypt(secret);
     const [version, iv, authTag, ciphertext] = encryptedSecret.split(':');
@@ -93,6 +96,7 @@ export class WebhooksService {
 
     return {
       ...webhook,
+      secret: encryptedSecret,
       healthPercentage: 100.0,
       averageLatencyMs: 0,
       status: 'HEALTHY' as WebhookHealthStatus,
@@ -196,7 +200,7 @@ export class WebhooksService {
     }
 
     try {
-      const response = await fetch(webhook.url, {
+      const response = await ssrfSafeFetch(webhook.url, {
         method: 'POST',
         headers,
         body: payload,

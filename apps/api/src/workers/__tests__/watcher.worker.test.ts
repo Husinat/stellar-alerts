@@ -15,6 +15,13 @@ vi.mock('../../lib/prisma', () => ({
     notificationPreference: {
       findUnique: vi.fn().mockResolvedValue(null),
     },
+    alertRule: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    alertRuleDispatchLog: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({}),
+    },
   },
 }));
 
@@ -41,6 +48,11 @@ vi.mock('../../lib/lock', () => ({
   withWalletLock: vi.fn(async (_walletId: string, fn: () => Promise<any>) => fn()),
 }));
 
+vi.mock('../../lib/realtime', () => ({
+  publishPaymentEvent: vi.fn().mockResolvedValue(undefined),
+  publishDeliveryEvent: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { prisma } from '../../lib/prisma';
 import { stellar } from '../../lib/stellar';
 import { enqueuePaymentAlert } from '../../lib/queue';
@@ -50,6 +62,7 @@ import {
   saveCursor,
   handleStreamRecord,
   startHorizonSSEStream,
+  processPaymentRecord,
   type StreamConnector,
 } from '../watcher.worker';
 
@@ -365,5 +378,88 @@ describe('Horizon SSE stream lifecycle', () => {
 
     expect(connections).toHaveLength(0);
     expect(typeof close).toBe('function');
+  });
+});
+
+describe('processPaymentRecord — persisted AlertRule evaluator', () => {
+  const userWallet = { id: 'wallet-1', publicKey: wallet.publicKey, userId: 'user-1' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.payment.findUnique).mockResolvedValue(null as any);
+    vi.mocked(prisma.payment.create).mockResolvedValue({ id: 'payment-1' } as any);
+    vi.mocked(prisma.alertRule.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.alertRuleDispatchLog.findUnique).mockResolvedValue(null as any);
+    vi.mocked(prisma.notificationPreference.findUnique).mockResolvedValue(null as any);
+  });
+
+  it('enqueues an alert when an active AlertRule matches the payment', async () => {
+    vi.mocked(prisma.alertRule.findMany).mockResolvedValue([
+      { id: 'rule-1', userId: 'user-1', walletId: null, assets: [], minAmount: null, conditions: null, isActive: true },
+    ] as any);
+
+    await processPaymentRecord(userWallet, paymentRecord('6001', 'hash-rule-match'));
+
+    expect(enqueuePaymentAlert).toHaveBeenCalledTimes(1);
+    expect(prisma.alertRuleDispatchLog.create).toHaveBeenCalledWith({
+      data: { paymentId: 'payment-1', matchedRuleIds: ['rule-1'] },
+    });
+    // The legacy filterRules gate must not run once AlertRule rows exist for the user.
+    expect(prisma.notificationPreference.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('does not enqueue when the user has AlertRules but none match (multi-asset, no match)', async () => {
+    vi.mocked(prisma.alertRule.findMany).mockResolvedValue([
+      { id: 'usdc-only', userId: 'user-1', walletId: null, assets: ['USDC'], minAmount: null, conditions: null, isActive: true },
+    ] as any);
+
+    // paymentRecord() is a native XLM payment, which the USDC-only rule rejects.
+    await processPaymentRecord(userWallet, paymentRecord('6002', 'hash-no-match'));
+
+    expect(enqueuePaymentAlert).not.toHaveBeenCalled();
+    expect(prisma.alertRuleDispatchLog.create).not.toHaveBeenCalled();
+  });
+
+  it('respects a minimum amount threshold rule', async () => {
+    vi.mocked(prisma.alertRule.findMany).mockResolvedValue([
+      { id: 'min-100', userId: 'user-1', walletId: null, assets: [], minAmount: 100, conditions: null, isActive: true },
+    ] as any);
+
+    // paymentRecord() amount is '10.5', below the 100 threshold.
+    await processPaymentRecord(userWallet, paymentRecord('6003', 'hash-below-threshold'));
+
+    expect(enqueuePaymentAlert).not.toHaveBeenCalled();
+  });
+
+  it('never matches an inactive AlertRule', async () => {
+    vi.mocked(prisma.alertRule.findMany).mockResolvedValue([
+      { id: 'inactive', userId: 'user-1', walletId: null, assets: [], minAmount: null, conditions: null, isActive: false },
+    ] as any);
+
+    await processPaymentRecord(userWallet, paymentRecord('6004', 'hash-inactive'));
+
+    expect(enqueuePaymentAlert).not.toHaveBeenCalled();
+  });
+
+  it('does not re-enqueue a duplicate delivery of the same payment event', async () => {
+    vi.mocked(prisma.alertRule.findMany).mockResolvedValue([
+      { id: 'rule-1', userId: 'user-1', walletId: null, assets: [], minAmount: null, conditions: null, isActive: true },
+    ] as any);
+    vi.mocked(prisma.alertRuleDispatchLog.findUnique).mockResolvedValue({ id: 'log-1' } as any);
+
+    await processPaymentRecord(userWallet, paymentRecord('6005', 'hash-duplicate'));
+
+    expect(enqueuePaymentAlert).not.toHaveBeenCalled();
+    expect(prisma.alertRuleDispatchLog.create).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the legacy filterRules gate when the user has no AlertRule rows', async () => {
+    vi.mocked(prisma.alertRule.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.notificationPreference.findUnique).mockResolvedValue({ filterRules: null } as any);
+
+    await processPaymentRecord(userWallet, paymentRecord('6006', 'hash-legacy'));
+
+    expect(prisma.notificationPreference.findUnique).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
+    expect(enqueuePaymentAlert).toHaveBeenCalledTimes(1);
   });
 });
