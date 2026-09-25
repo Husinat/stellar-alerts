@@ -1,4 +1,5 @@
 import * as StellarSdk from 'stellar-sdk';
+import { env } from '../config/env';
 import { prisma, connectWithRetry } from '../lib/prisma';
 import { stellar, decodeHorizonAsset, parseSacTransferEvent } from '../lib/stellar';
 import { enqueuePaymentAlert } from '../lib/queue';
@@ -15,7 +16,15 @@ import { shouldAlert, PaymentContext } from '../lib/rules-engine';
 import { evaluateAndDispatch, AlertRuleRecord, NormalizedPaymentEvent } from '../lib/alert-rule-evaluator';
 import { MemoryMonitor, MemorySnapshot } from '../utils/memory-monitor';
 import { createLogger } from '../lib/logger';
+import { WorkerLifecycleManager } from '../lib/worker-lifecycle';
 import { trace, SpanStatusCode, TraceFlags } from '@opentelemetry/api';
+
+export const watcherLifecycle = new WorkerLifecycleManager({
+  workerName: 'WatcherWorker',
+  drainTimeoutMs: 10_000,
+  maxInFlight: 20,
+  autoRegisterSignals: true,
+});
 import {
   BOUNDED_BACKFILL_LIMIT,
   buildCursorGapClearedUpdate,
@@ -606,6 +615,28 @@ export function startMemoryMonitor(): MemoryMonitor {
   return monitor;
 }
 
+/**
+ * Concurrently processes wallets using a bounded worker pool to prevent starvation (#309).
+ */
+export async function processWalletsConcurrently(
+  wallets: Array<{ id: string; publicKey: string; userId?: string }>,
+  concurrency = env.WATCHER_WALLET_CONCURRENCY,
+): Promise<void> {
+  const queue = [...wallets];
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const wallet = queue.shift();
+      if (!wallet) break;
+      try {
+        await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
+      } catch (err: any) {
+        console.error(`[WatcherWorker] Error processing wallet ${wallet.publicKey}:`, err.message || err);
+      }
+    }
+  });
+  await Promise.all(workers);
+}
+
 export async function pollOnce() {
   return tracer.startActiveSpan('watcher.pollOnce', async (pollSpan) => {
     try {
@@ -615,13 +646,7 @@ export async function pollOnce() {
         pollSpan.end();
         return;
       }
-      for (const wallet of wallets) {
-        try {
-          await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
-        } catch (err: any) {
-          console.error(`[WatcherWorker] Error processing wallet ${wallet.publicKey}:`, err.message || err);
-        }
-      }
+      await processWalletsConcurrently(wallets, env.WATCHER_WALLET_CONCURRENCY);
       const contractIds = getActiveContractIds();
       if (contractIds.length > 0) {
         for (const contractId of contractIds) {
@@ -647,54 +672,65 @@ export async function runWatcher() {
 
   startMemoryMonitor();
 
+  watcherLifecycle.registerCleanup('memoryMonitor', () => {
+    memoryMonitor?.stop();
+  });
+  watcherLifecycle.registerCleanup('prisma', async () => {
+    await prisma.$disconnect();
+  });
+
   await loadContractRegistry();
 
   const poll = async () => {
-    return tracer.startActiveSpan('watcher.poll', async (pollSpan) => {
-      try {
-        const wallets = await prisma.wallet.findMany();
-        if (wallets.length === 0) {
-          console.log(
-            "[WatcherWorker] No wallets registered in DB to watch. Waiting for next poll...",
-          );
-          pollSpan.setStatus({ code: SpanStatusCode.OK });
-          pollSpan.end();
-          return;
-        }
-
-        console.log(
-          `[WatcherWorker] Checking ${wallets.length} registered wallet(s)...`,
-        );
-        for (const wallet of wallets) {
-          await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
-        }
-
-        const contractIds = getActiveContractIds();
-        if (contractIds.length > 0) {
-          console.log(
-            `[WatcherWorker] Processing ${contractIds.length} Soroban contract subscriptions...`,
-          );
-          for (const contractId of contractIds) {
-            await processSorobanContractEvents(contractId);
+    return watcherLifecycle.runTask(async () => {
+      return tracer.startActiveSpan('watcher.poll', async (pollSpan) => {
+        try {
+          const wallets = await prisma.wallet.findMany();
+          if (wallets.length === 0) {
+            console.log(
+              "[WatcherWorker] No wallets registered in DB to watch. Waiting for next poll...",
+            );
+            pollSpan.setStatus({ code: SpanStatusCode.OK });
+            pollSpan.end();
+            return;
           }
+
+          console.log(
+            `[WatcherWorker] Checking ${wallets.length} registered wallet(s)...`,
+          );
+          for (const wallet of wallets) {
+            await processWalletPayments({ id: wallet.id, publicKey: wallet.publicKey, userId: wallet.userId });
+          }
+
+          const contractIds = getActiveContractIds();
+          if (contractIds.length > 0) {
+            console.log(
+              `[WatcherWorker] Processing ${contractIds.length} Soroban contract subscriptions...`,
+            );
+            for (const contractId of contractIds) {
+              await processSorobanContractEvents(contractId);
+            }
+          }
+          pollSpan.setStatus({ code: SpanStatusCode.OK });
+        } catch (err) {
+          pollSpan.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+          throw err;
+        } finally {
+          pollSpan.end();
         }
-        pollSpan.setStatus({ code: SpanStatusCode.OK });
-      } catch (err) {
-        pollSpan.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
-        throw err;
-      } finally {
-        pollSpan.end();
-      }
+      });
     });
   };
 
   await poll();
 
-  setInterval(poll, 30000);
+  const pollTimer = setInterval(poll, 30000);
+  watcherLifecycle.trackInterval(pollTimer);
 
-  setInterval(() => {
+  const registryTimer = setInterval(() => {
     loadContractRegistry();
   }, 300000);
+  watcherLifecycle.trackInterval(registryTimer);
 }
 
 async function processSorobanContractEvents(contractId: string) {

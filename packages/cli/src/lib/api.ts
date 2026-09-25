@@ -1,14 +1,13 @@
 import { WalletDTO, PaymentDTO, isValidStellarPublicKey } from './types.js';
-
-const API_BASE_URL = process.env.STELLAR_ALERTS_API_URL || 'http://localhost:3001';
+import { getCliConfig } from './config.js';
 
 export class ApiClient {
   private baseUrl: string;
   private apiKey?: string;
 
-  constructor(baseUrl: string = API_BASE_URL, apiKey?: string) {
-    this.baseUrl = baseUrl;
-    this.apiKey = apiKey;
+  constructor(baseUrl?: string, apiKey?: string) {
+    this.baseUrl = baseUrl || getCliConfig().STELLAR_ALERTS_API_URL;
+    this.apiKey = apiKey || getCliConfig().STELLAR_ALERTS_API_KEY;
   }
 
   private getHeaders(): Record<string, string> {

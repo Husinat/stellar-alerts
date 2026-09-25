@@ -2,6 +2,7 @@ import { env } from './config/env';
 import { buildApp } from './app';
 import { prisma, connectWithRetry } from './lib/prisma';
 import { startTelemetry, shutdownTelemetry } from './lib/telemetry';
+import { closeRedisConnections } from './lib/redis';
 
 const start = async () => {
   try {
@@ -28,7 +29,8 @@ const start = async () => {
       await app.close();
       await prisma.$disconnect();
       await shutdownTelemetry();
-      console.log('✅ Server and Prisma closed cleanly');
+      await closeRedisConnections();
+      console.log('✅ Server, Prisma, and Redis closed cleanly');
       process.exit(0);
     };
 
