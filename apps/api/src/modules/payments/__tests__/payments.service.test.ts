@@ -62,6 +62,95 @@ describe('PaymentsService', () => {
         }),
       );
     });
+
+    it('defaults to sorting by receivedAt desc when no sort is given', async () => {
+      (prisma.payment.findMany as any).mockResolvedValue([]);
+
+      await service.getPayments('user-1');
+
+      expect(prisma.payment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ orderBy: { receivedAt: 'desc' } }),
+      );
+    });
+
+    it('sorts by the requested field and order', async () => {
+      (prisma.payment.findMany as any).mockResolvedValue([]);
+
+      await service.getPayments('user-1', undefined, 20, { sortBy: 'amount', sortOrder: 'asc' });
+
+      expect(prisma.payment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ orderBy: { amount: 'asc' } }),
+      );
+    });
+
+    it('filters by asset, still scoped to the user\'s wallets', async () => {
+      (prisma.payment.findMany as any).mockResolvedValue([]);
+
+      await service.getPayments('user-1', undefined, 20, { asset: 'USDC' });
+
+      expect(prisma.payment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { wallet: { userId: 'user-1' }, asset: 'USDC' },
+        }),
+      );
+    });
+
+    it('filters by memo with a case-insensitive contains match', async () => {
+      (prisma.payment.findMany as any).mockResolvedValue([]);
+
+      await service.getPayments('user-1', undefined, 20, { memo: 'invoice-42' });
+
+      expect(prisma.payment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            wallet: { userId: 'user-1' },
+            memo: { contains: 'invoice-42', mode: 'insensitive' },
+          },
+        }),
+      );
+    });
+
+    it('filters by a receivedAt date range', async () => {
+      (prisma.payment.findMany as any).mockResolvedValue([]);
+      const dateFrom = new Date('2026-01-01T00:00:00.000Z');
+      const dateTo = new Date('2026-01-31T00:00:00.000Z');
+
+      await service.getPayments('user-1', undefined, 20, { dateFrom, dateTo });
+
+      expect(prisma.payment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            wallet: { userId: 'user-1' },
+            receivedAt: { gte: dateFrom, lte: dateTo },
+          },
+        }),
+      );
+    });
+
+    it('combines walletId, asset, memo, date range, and sort in one query, still scoped to the user', async () => {
+      (prisma.payment.findMany as any).mockResolvedValue([]);
+      const dateFrom = new Date('2026-01-01T00:00:00.000Z');
+
+      await service.getPayments('user-1', 'wallet-9', 5, {
+        asset: 'XLM',
+        memo: 'rent',
+        dateFrom,
+        sortBy: 'asset',
+        sortOrder: 'asc',
+      });
+
+      expect(prisma.payment.findMany).toHaveBeenCalledWith({
+        where: {
+          walletId: 'wallet-9',
+          wallet: { userId: 'user-1' },
+          asset: 'XLM',
+          memo: { contains: 'rent', mode: 'insensitive' },
+          receivedAt: { gte: dateFrom },
+        },
+        orderBy: { asset: 'asc' },
+        take: 5,
+      });
+    });
   });
 
   describe('getPaymentsSummary', () => {

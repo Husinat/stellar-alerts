@@ -5,12 +5,23 @@ import { generateLedgerStatementPdf } from '../../utils/pdf-generator';
 import { prismaRead } from '../../lib/prisma';
 import { paymentsService } from './payments.service';
 
-const getPaymentsSchema = z.object({
-  // Optional: omitted by the dashboard's "All Wallets" view (see apps/web
-  // src/app/page.tsx fetchPayments/fetchSummary), which previously 400'd here.
-  walletId: z.string().optional(),
-  limit: z.coerce.number().optional().default(20),
-});
+const getPaymentsSchema = z
+  .object({
+    // Optional: omitted by the dashboard's "All Wallets" view (see apps/web
+    // src/app/(app)/dashboard/page.tsx fetchPayments), which previously 400'd here.
+    walletId: z.string().optional(),
+    limit: z.coerce.number().optional().default(20),
+    asset: z.string().optional(),
+    memo: z.string().optional(),
+    dateFrom: z.coerce.date().optional(),
+    dateTo: z.coerce.date().optional(),
+    sortBy: z.enum(['receivedAt', 'amount', 'asset']).optional().default('receivedAt'),
+    sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
+  })
+  .refine((data) => !data.dateFrom || !data.dateTo || data.dateFrom <= data.dateTo, {
+    message: 'dateFrom must be before or equal to dateTo',
+    path: ['dateFrom'],
+  });
 
 const getSummarySchema = z.object({
   walletId: z.string().optional(),
@@ -46,6 +57,14 @@ export class PaymentsController {
       request.user.id,
       parsed.data.walletId,
       parsed.data.limit,
+      {
+        asset: parsed.data.asset,
+        memo: parsed.data.memo,
+        dateFrom: parsed.data.dateFrom,
+        dateTo: parsed.data.dateTo,
+        sortBy: parsed.data.sortBy,
+        sortOrder: parsed.data.sortOrder,
+      },
     );
     return reply.send({ success: true, payments });
   }
